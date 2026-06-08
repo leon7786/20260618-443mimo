@@ -707,9 +707,11 @@ function renderLocalCards(){
     const typeText = listener.type || '';
     const portText = listener.port !== undefined && listener.port !== null ? listener.port : '-';
     const summary = `${typeText || '未知协议'} · ${portText} · ${status.text}`;
+    const dnsValue = svc.dns_upstream || 'local';
     const card = document.createElement('div'); card.className='card';
     card.innerHTML = `<div class="card-head"><div class="card-title"><label class="switch ${status.isOn?'on':''}"><input type="checkbox" ${svc.enabled?'checked':''} onchange="toggleLocalService(${i}, this)"><span class="slider"></span></label><div><h3 style="margin:0">${escapeHtml(listener.name || svc.id || 'service')}</h3><div class="service-summary">${escapeHtml(summary)}</div><span class="service-state ${status.cls}">${status.text}</span></div></div><span class="pill">${escapeHtml(typeText)}</span></div>
       <div class="yaml-wrap"><label>节点全部信息</label><textarea oninput="state.local_services[${i}].listener_yaml=this.value">${escapeHtml(svc.listener_yaml || '')}</textarea></div>
+      <div style="margin-top:10px"><label style="font-size:13px;color:#666">DNS上游（生成节点时使用）:</label><select onchange="state.local_services[${i}].dns_upstream=this.value" style="margin-left:8px;padding:4px 8px;border:1px solid #ddd;border-radius:4px"><option value="local" ${dnsValue==='local'?'selected':''}>本地 (mihomo DNS)</option><option value="1.1.1.1" ${dnsValue==='1.1.1.1'?'selected':''}>1.1.1.1 (Cloudflare)</option><option value="8.8.4.4" ${dnsValue==='8.8.4.4'?'selected':''}>8.8.4.4 (Google)</option></select></div>
       <div class="card-actions"><button class="action-copy" onclick="copyLocalNode(${i}, this)">复制节点</button><button class="action-copy" onclick="copyLocalNodeUrl(${i}, this)">复制节点URL</button><button class="action-danger" onclick="removeLocal(${i})">删除</button></div>`;
     el.appendChild(card);
   });
@@ -1457,9 +1459,14 @@ def query_string(params):
     return urlencode({k: v for k, v in params.items() if v is not None and v != ""}, doseq=True)
 
 
-def listener_to_client_node(listener, server_ip):
+def listener_to_client_node(listener, server_ip, dns_upstream="local"):
     typ = str(listener.get("type", "")).lower()
     node = {"name": listener.get("name"), "type": "ss" if typ == "shadowsocks" else typ, "server": server_ip, "port": int(listener.get("port"))}
+
+    # DNS 上游配置
+    if dns_upstream and dns_upstream != "local":
+        node["dns"] = dns_upstream
+
     if typ == "tuic":
         users = listener.get("users") or {}
         if not isinstance(users, dict) or not users:
@@ -1520,12 +1527,18 @@ def listener_to_client_node(listener, server_ip):
     return yaml.safe_dump([node], allow_unicode=True, sort_keys=False).strip()
 
 
-def listener_to_client_url(listener, server_ip):
+def listener_to_client_url(listener, server_ip, dns_upstream="local"):
     typ = str(listener.get("type", "")).lower()
     name = str(listener.get("name") or typ or "node")
     tag = quote(name, safe="")
     host = str(server_ip)
     port = int(listener.get("port"))
+
+    # DNS 参数（如果非 local）
+    dns_param = None
+    if dns_upstream and dns_upstream != "local":
+        dns_param = dns_upstream
+
     if typ == "shadowsocks":
         cipher = str(listener.get("cipher") or "")
         password = str(listener.get("password") or "")
@@ -2580,13 +2593,16 @@ class Handler(BaseHTTPRequestHandler):
                 json_response(self, 200, {"ok": True, "entry": entry, "nodes": nodes, "exit_proxy": exit_proxy})
                 return
             if path == "/api/local-node":
-                listener = parse_listener_yaml(data.get("service") or {})
+                service = data.get("service") or {}
+                listener = parse_listener_yaml(service)
+                dns_upstream = service.get("dns_upstream", "local")
                 ip, cached = public_ip_cached()
-                text = listener_to_client_node(listener, ip)
+                text = listener_to_client_node(listener, ip, dns_upstream)
                 json_response(self, 200, {"ok": True, "public_ip": ip, "ip_cached": cached, "yaml": text})
                 return
             if path == "/api/local-node-url":
-                listener = parse_listener_yaml(data.get("service") or {})
+                service = data.get("service") or {}
+                listener = parse_listener_yaml(service)
                 ip, cached = public_ip_cached()
                 url = listener_to_client_url(listener, ip)
                 json_response(self, 200, {"ok": True, "public_ip": ip, "ip_cached": cached, "url": url})
