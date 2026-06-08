@@ -977,11 +977,13 @@ async function parseChain(){
     state.chain.entry = data.entry; state.chain.nodes = data.nodes; state.chain.exit_proxy = data.exit_proxy; delete state.chain.group_name; renderChainPreview(); out('链路识别完成。');
   }catch(e){ out(e); }
 }
-async function collectFreshState(){
-  document.querySelectorAll('#localCards .card textarea').forEach((ta, i) => { if(state.local_services[i]) state.local_services[i].listener_yaml = ta.value; });
-  document.querySelectorAll('#localCards .card input[type="checkbox"]').forEach((cb, i) => { if(state.local_services[i]) state.local_services[i].enabled = cb.checked; });
-  state.chain.enabled = document.getElementById('applySwitch') ? document.getElementById('applySwitch').checked : true;
-  state.chain.entry_text = document.getElementById('entryText').value;
+function collectChainUiState(){
+  // 提取链式代理 UI 状态的共用逻辑
+  const chainState = {
+    enabled: document.getElementById('applySwitch') ? document.getElementById('applySwitch').checked : true,
+    entry_text: document.getElementById('entryText').value,
+    node_texts: []
+  };
 
   // 收集二维 node_texts
   const nodeLevels = [];
@@ -990,7 +992,19 @@ async function collectFreshState(){
     levelBox.querySelectorAll('textarea').forEach(ta => levelNodes.push(ta.value));
     if(levelNodes.length > 0) nodeLevels.push(levelNodes);
   });
-  state.chain.node_texts = nodeLevels;
+  chainState.node_texts = nodeLevels;
+
+  return chainState;
+}
+
+async function collectFreshState(){
+  document.querySelectorAll('#localCards .card textarea').forEach((ta, i) => { if(state.local_services[i]) state.local_services[i].listener_yaml = ta.value; });
+  document.querySelectorAll('#localCards .card input[type="checkbox"]').forEach((cb, i) => { if(state.local_services[i]) state.local_services[i].enabled = cb.checked; });
+
+  const chainUi = collectChainUiState();
+  state.chain.enabled = chainUi.enabled;
+  state.chain.entry_text = chainUi.entry_text;
+  state.chain.node_texts = chainUi.node_texts;
 
   // 扁平化传给 API
   const flatNodeYamls = nodeLevels.flatMap(level => level.filter(n => n.trim()));
@@ -1006,20 +1020,14 @@ async function collectFreshState(){
 async function collectFreshChainState(){
   const latest = (await api('/api/state')).state || {version:1, local_services:[], managed:{listener_names:[], proxy_names:[], proxy_group_names:[]}};
   latest.chain = latest.chain || {enabled:true, entry_text:'', node_texts:[['']], entry:null, nodes:[]};
-  latest.chain.enabled = document.getElementById('applySwitch') ? document.getElementById('applySwitch').checked : true;
-  latest.chain.entry_text = document.getElementById('entryText').value;
 
-  // 收集二维 node_texts
-  const nodeLevels = [];
-  document.querySelectorAll('#chainNodes > div').forEach(levelBox => {
-    const levelNodes = [];
-    levelBox.querySelectorAll('textarea').forEach(ta => levelNodes.push(ta.value));
-    if(levelNodes.length > 0) nodeLevels.push(levelNodes);
-  });
-  latest.chain.node_texts = nodeLevels;
+  const chainUi = collectChainUiState();
+  latest.chain.enabled = chainUi.enabled;
+  latest.chain.entry_text = chainUi.entry_text;
+  latest.chain.node_texts = chainUi.node_texts;
 
   // 扁平化传给 API
-  const flatNodeYamls = nodeLevels.flatMap(level => level.filter(n => n.trim()));
+  const flatNodeYamls = chainUi.node_texts.flatMap(level => level.filter(n => n.trim()));
 
   if(latest.chain.entry_text.trim() && flatNodeYamls.length > 0){
     const data = await api('/api/parse/chain', {entry_yaml:latest.chain.entry_text, node_yamls:flatNodeYamls});
@@ -2136,16 +2144,26 @@ def google_connectivity_command(state=None):
     return target, mode, cmd
 
 
-def test_google_connectivity(state=None):
+def test_google_connectivity(state=None, timeout=5, connect_timeout=3, max_attempts=2, retry_delay=0.2):
+    """统一的连通性测试函数
+
+    Args:
+        state: 状态配置
+        timeout: curl 最大超时（秒）
+        connect_timeout: curl 连接超时（秒）
+        max_attempts: 最大尝试次数
+        retry_delay: 重试间隔（秒）
+    """
     checked_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     target, mode, cmd = google_connectivity_command(state)
     cmd = cmd[:]
-    cmd[1:1] = ["--max-time", "5", "--connect-timeout", "3"]
+    cmd[1:1] = ["--max-time", str(timeout), "--connect-timeout", str(connect_timeout)]
     last_result = None
-    for attempt in range(1, 3):
+
+    for attempt in range(1, max_attempts + 1):
         try:
             start = time.monotonic()
-            result = command_result(cmd, 3)
+            result = command_result(cmd, int(timeout) + 1)
             result["elapsed_ms"] = int((time.monotonic() - start) * 1000)
             result["attempt"] = attempt
             last_result = result
@@ -2153,48 +2171,20 @@ def test_google_connectivity(state=None):
                 return {"ok": True, "checked_at": checked_at, "target": target, "mode": mode, "attempt": attempt, "returncode": result["returncode"], "elapsed_ms": result["elapsed_ms"], "output": result["output"][-2000:]}
         except Exception as e:
             last_result = {"ok": False, "attempt": attempt, "returncode": -1, "elapsed_ms": None, "output": str(e)}
-        if attempt < 2:
-            time.sleep(0.2)
+        if attempt < max_attempts:
+            time.sleep(retry_delay)
+
     return {"ok": False, "checked_at": checked_at, "target": target, "mode": mode, "attempt": last_result.get("attempt"), "returncode": last_result.get("returncode"), "elapsed_ms": last_result.get("elapsed_ms"), "output": last_result.get("output", "")[-2000:]}
 
 
 def test_google_connectivity_quick(state=None):
-    checked_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    target, mode, cmd = google_connectivity_command(state)
-    cmd = cmd[:]
-    cmd[1:1] = ["--max-time", "0.7", "--connect-timeout", "0.7"]
-    last_result = None
-    for attempt in range(1, 3):
-        try:
-            start = time.monotonic()
-            result = command_result(cmd, 2)
-            result["elapsed_ms"] = int((time.monotonic() - start) * 1000)
-            result["attempt"] = attempt
-            last_result = result
-            if result["ok"]:
-                return {"ok": True, "checked_at": checked_at, "target": target, "mode": mode, "attempt": attempt, "returncode": result["returncode"], "elapsed_ms": result["elapsed_ms"], "output": result["output"][-2000:]}
-        except Exception as e:
-            last_result = {"ok": False, "attempt": attempt, "returncode": -1, "elapsed_ms": None, "output": str(e)}
-        if attempt < 2:
-            time.sleep(0.1)
-    return {"ok": False, "checked_at": checked_at, "target": target, "mode": mode, "attempt": last_result.get("attempt"), "returncode": last_result.get("returncode"), "elapsed_ms": last_result.get("elapsed_ms"), "output": last_result.get("output", "")[-2000:]}
+    """快速测试：0.7 秒超时，重试 2 次"""
+    return test_google_connectivity(state, timeout=0.7, connect_timeout=0.7, max_attempts=2, retry_delay=0.1)
 
 
 def test_google_connectivity_retry(state=None):
-    """重试版本：单次测试，超时 1 秒"""
-    checked_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    target, mode, cmd = google_connectivity_command(state)
-    cmd = cmd[:]
-    cmd[1:1] = ["--max-time", "1", "--connect-timeout", "1"]
-    try:
-        start = time.monotonic()
-        result = command_result(cmd, 2)
-        result["elapsed_ms"] = int((time.monotonic() - start) * 1000)
-        if result["ok"]:
-            return {"ok": True, "checked_at": checked_at, "target": target, "mode": mode, "returncode": result["returncode"], "elapsed_ms": result["elapsed_ms"], "output": result["output"][-2000:]}
-        return {"ok": False, "checked_at": checked_at, "target": target, "mode": mode, "returncode": result.get("returncode"), "elapsed_ms": result["elapsed_ms"], "output": result.get("output", "")[-2000:]}
-    except Exception as e:
-        return {"ok": False, "checked_at": checked_at, "target": target, "mode": mode, "returncode": -1, "elapsed_ms": None, "output": str(e)}
+    """重试版本：1 秒超时，单次测试"""
+    return test_google_connectivity(state, timeout=1, connect_timeout=1, max_attempts=1, retry_delay=0)
 
 
 def write_candidate(config):

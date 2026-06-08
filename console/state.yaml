@@ -85,7 +85,7 @@ local_services:
 
     udp: true'
 chain:
-  enabled: false
+  enabled: true
   entry_text: "- name: chain-entry-http-2001\n  type: http\n  server: 0.0.0.0\n  port:\
     \ 2001\n  username: admin123\n  password: admin1234"
   node_texts:
@@ -140,11 +140,32 @@ chain:
     server: 102.112217.xyz
   exit_proxy: 102.112217.xyz
 managed:
-  listener_names: []
-  proxy_names: []
+  listener_names:
+  - chain-entry-http-2001
+  proxy_names:
+  - 101.112217.xyz
+  - 102.112217.xyz
   proxy_group_names:
   - 节点选择
-connectivity: null
+  - chain-level2-urltest
+connectivity:
+  ok: true
+  checked_at: '2026-06-09 04:37:05'
+  target: https://www.google.com/generate_204
+  mode: chain-entry-http-2001
+  attempt: 1
+  returncode: 0
+  elapsed_ms: 86
+  output: "  % Total    % Received % Xferd  Average Speed  Time    Time    Time  \
+    \ Current\n                                 Dload  Upload  Total   Spent   Left\
+    \   Speed\n\n  0      0   0      0   0      0      0      0                  \
+    \            0\n  0      0   0      0   0      0      0      0               \
+    \               0\n  0      0   0      0   0      0      0      0            \
+    \                  0\n  0      0   0      0   0      0      0      0         \
+    \                     0\n  0      0   0      0   0      0      0      0      \
+    \                        0\nHTTP/1.1 200 Connection established\n\nHTTP/2 204\
+    \ \ncross-origin-resource-policy: cross-origin\ndate: Mon, 08 Jun 2026 20:37:06\
+    \ GMT\nalt-svc: h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000\n\n"
 performance:
   keep_alive: true
   tcp_concurrent: true
