@@ -31,6 +31,13 @@ listeners:
   users:
   - username: admin12
     password: Dd;'2131801a
+- name: chain-entry-http-2001
+  type: http
+  port: 2001
+  listen: 0.0.0.0
+  users:
+  - username: admin123
+    password: admin1234
 rules:
 - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
 - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
@@ -43,13 +50,33 @@ rules:
 - RULE-SET,private,DIRECT
 - RULE-SET,cn_domain,DIRECT
 - RULE-SET,cn_ip,DIRECT,no-resolve
-- MATCH,节点选择
+- MATCH,chain-level2-urltest
 proxy-groups:
+- name: 自动选择
+  type: url-test
+  proxies:
+  - 102.112217.xyz
+  - ss-0.0.0.0-852044
+  - 101.112217.xyz
+  url: https://www.gstatic.com/generate_204
+  interval: 300
+  tolerance: 50
 - name: 节点选择
   type: select
   proxies:
+  - 自动选择
+  - 102.112217.xyz
   - ss-0.0.0.0-852044
+  - 101.112217.xyz
   - DIRECT
+- name: chain-level2-urltest
+  type: url-test
+  proxies:
+  - 101.112217.xyz
+  - 102.112217.xyz
+  url: https://www.gstatic.com/generate_204
+  interval: 300
+  tolerance: 50
 tcp-concurrent: true
 unified-delay: true
 connection-timeout: 5
@@ -90,3 +117,17 @@ proxies:
   cipher: aes-128-gcm
   password: 25b40997-2d5f-4996-bb71-33a5975dfa36
   udp: true
+- name: 101.112217.xyz
+  type: ss
+  port: 12093
+  cipher: 2022-blake3-aes-128-gcm
+  password: ZnVHrxWfQFmUQ+1OsyakOA==
+  udp: true
+  server: 101.112217.xyz
+- name: 102.112217.xyz
+  type: ss
+  port: 12093
+  cipher: 2022-blake3-aes-128-gcm
+  password: ZnVHrxWfQFmUQ+1OsyakOA==
+  udp: true
+  server: 102.112217.xyz

@@ -1563,6 +1563,10 @@ def normalize_chain_nodes(texts):
                     if "listen" in node and "server" not in node:
                         node["server"] = node.pop("listen")
 
+                    # 修正类型名称：shadowsocks → ss
+                    if node.get("type") == "shadowsocks":
+                        node["type"] = "ss"
+
                     level_nodes.append(node)
 
         if level_nodes:
