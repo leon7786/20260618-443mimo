@@ -89,19 +89,7 @@ chain:
   entry_text: "- name: chain-entry-http-2001\n  type: http\n  server: 0.0.0.0\n  port:\
     \ 2001\n  username: admin123\n  password: admin1234"
   node_texts:
-  - 'name: 43.136.66.83
-
-    type: shadowsocks
-
-    listen: 43.136.66.83
-
-    port: 12093
-
-    cipher: 2022-blake3-aes-128-gcm
-
-    password: ZnVHrxWfQFmUQ+1OsyakOA==
-
-    udp: true'
+  - ''
   entry: null
   nodes: []
   exit_proxy: ''
@@ -110,23 +98,7 @@ managed:
   proxy_names: []
   proxy_group_names:
   - 节点选择
-connectivity:
-  ok: true
-  checked_at: '2026-06-09 02:54:36'
-  target: https://www.google.com/generate_204
-  mode: direct
-  attempt: 1
-  returncode: 0
-  elapsed_ms: 88
-  output: "  % Total    % Received % Xferd  Average Speed  Time    Time    Time  \
-    \ Current\n                                 Dload  Upload  Total   Spent   Left\
-    \   Speed\n\n  0      0   0      0   0      0      0      0                  \
-    \            0\n  0      0   0      0   0      0      0      0               \
-    \               0\n  0      0   0      0   0      0      0      0            \
-    \                  0\n  0      0   0      0   0      0      0      0         \
-    \                     0\nHTTP/2 204 \ncross-origin-resource-policy: cross-origin\n\
-    date: Mon, 08 Jun 2026 18:54:36 GMT\nalt-svc: h3=\":443\"; ma=2592000,h3-29=\"\
-    :443\"; ma=2592000\n\n"
+connectivity: null
 performance:
   keep_alive: true
   tcp_concurrent: true

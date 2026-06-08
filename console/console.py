@@ -228,7 +228,7 @@ HTML = r"""
 
 </main>
 <script>
-let state = {version:1, local_services:[], chain:{enabled:true, entry_text:'', node_texts:[''], entry:null, nodes:[]}, managed:{listener_names:[], proxy_names:[], proxy_group_names:[]}};
+let state = {version:1, local_services:[], chain:{enabled:true, entry_text:'', node_texts:[['']], entry:null, nodes:[]}, managed:{listener_names:[], proxy_names:[], proxy_group_names:[]}};
 let publicIp = '';
 
 const LOCAL_EXAMPLES = {
@@ -611,10 +611,10 @@ async function saveUiState(successMsg='状态已保存。'){
 }
 function fillLocalExample(type){ document.getElementById('localPaste').value = LOCAL_EXAMPLES[type] || ''; }
 function fillEntryExample(type){ const text = ENTRY_EXAMPLES[type] || ''; document.getElementById('entryText').value = text; state.chain.entry_text = text; }
-function fillAnyTlsChainExample(){ state.chain.node_texts = [ANYTLS_CHAIN_EXAMPLE]; renderChainNodes(); }
+function fillAnyTlsChainExample(){ state.chain.node_texts = [[ANYTLS_CHAIN_EXAMPLE]]; renderChainNodes(); }
 function addChainNode(text=''){
-  state.chain.node_texts = state.chain.node_texts || [];
-  state.chain.node_texts.push(text);
+  state.chain.node_texts = state.chain.node_texts || [['']];
+  state.chain.node_texts.push([text || '']);
   renderChainNodes();
 }
 
@@ -631,11 +631,21 @@ async function collectFreshStateForSave(){
   document.querySelectorAll('#localCards .card textarea').forEach((ta, i) => { if(state.local_services[i]) { state.local_services[i].listener_yaml = ta.value; delete state.local_services[i].status; } });
   document.querySelectorAll('#localCards .card input[type="checkbox"]').forEach((cb, i) => { if(state.local_services[i]) state.local_services[i].enabled = cb.checked; });
   latest.local_services = JSON.parse(JSON.stringify(state.local_services || []));
-  latest.chain = latest.chain || {enabled:false, entry_text:'', node_texts:[''], entry:null, nodes:[]};
+  latest.chain = latest.chain || {enabled:false, entry_text:'', node_texts:[['']], entry:null, nodes:[]};
   const entryText = document.getElementById('entryText');
   if(entryText) latest.chain.entry_text = entryText.value;
-  const chainTextareas = Array.from(document.querySelectorAll('#chainNodes textarea'));
-  if(chainTextareas.length) latest.chain.node_texts = chainTextareas.map(ta => ta.value);
+
+  // 收集二维 node_texts
+  const nodeLevels = [];
+  document.querySelectorAll('#chainNodes > div').forEach(levelBox => {
+    const levelNodes = [];
+    levelBox.querySelectorAll('textarea').forEach(ta => {
+      levelNodes.push(ta.value);
+    });
+    if(levelNodes.length > 0) nodeLevels.push(levelNodes);
+  });
+  if(nodeLevels.length > 0) latest.chain.node_texts = nodeLevels;
+
   return latest;
 }
 async function collectFreshLocalState(){
@@ -778,52 +788,72 @@ function chainNodeInfo(text){
 }
 function renderChainNodes(){
   const el = document.getElementById('chainNodes'); el.innerHTML='';
-  (state.chain.node_texts||['']).forEach((txt, i) => {
-    const box = document.createElement('div'); box.className='card';
-    box.innerHTML = `
-      <div class="card-head">
-        <div class="card-title">
-          <h3>第${i+2}级节点</h3>
-          <span class="pill">${escapeHtml(chainNodeInfo(txt))}</span>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="action-copy" onclick="addBackupNode(${i})" title="添加备用节点">+ 备用</button>
-          <button class="action-danger" onclick="removeChainNode(${i})">删除</button>
-        </div>
-      </div>
-      <div class="yaml-wrap">
-        <textarea oninput="state.chain.node_texts[${i}]=this.value">${escapeHtml(txt)}</textarea>
+  const nodeLevels = state.chain.node_texts || [['']];
+
+  nodeLevels.forEach((levelNodes, levelIndex) => {
+    // 级别容器
+    const levelBox = document.createElement('div');
+    levelBox.style.cssText = 'margin-bottom:16px;';
+
+    const levelHeader = document.createElement('div');
+    levelHeader.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;';
+    levelHeader.innerHTML = `
+      <h3 style="margin:0;font-size:15px;color:#2c5282;">第${levelIndex+2}级节点</h3>
+      <div style="display:flex;gap:8px;">
+        <button class="action-copy" onclick="addBackupNode(${levelIndex})" title="添加备用节点">+ 备用</button>
+        <button class="action-add" onclick="addChainNode()">+ 增加下一级</button>
+        <button class="action-danger" onclick="removeChainLevel(${levelIndex})">删除本级</button>
       </div>
     `;
-    el.appendChild(box);
+    levelBox.appendChild(levelHeader);
+
+    // 同级节点卡片
+    levelNodes.forEach((nodeYaml, nodeIndex) => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.cssText = 'margin-bottom:8px;';
+
+      const nodeLabel = levelNodes.length > 1 ? `<span class="muted" style="font-size:12px;">节点 ${nodeIndex+1}${nodeIndex === 0 ? ' (主)' : ' (备用)'}</span>` : '';
+      const deleteBtn = levelNodes.length > 1 ? `<button class="action-danger" onclick="removeBackupNode(${levelIndex}, ${nodeIndex})" style="font-size:12px;padding:4px 8px;">删除</button>` : '';
+
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          ${nodeLabel}
+          ${deleteBtn}
+        </div>
+        <div class="yaml-wrap">
+          <textarea data-level="${levelIndex}" data-node="${nodeIndex}" oninput="updateNodeText(${levelIndex}, ${nodeIndex}, this.value)">${escapeHtml(nodeYaml)}</textarea>
+        </div>
+      `;
+      levelBox.appendChild(card);
+    });
+
+    el.appendChild(levelBox);
   });
+
   initUndoForTextControls(el);
 }
+function updateNodeText(levelIndex, nodeIndex, value){
+  if(!state.chain.node_texts[levelIndex]) state.chain.node_texts[levelIndex] = [];
+  state.chain.node_texts[levelIndex][nodeIndex] = value;
+}
 function addBackupNode(levelIndex){
-  // 获取当前级别的 YAML
-  const textarea = document.querySelectorAll('#chainNodes textarea')[levelIndex];
-  if(!textarea) return;
+  if(!state.chain.node_texts[levelIndex]) state.chain.node_texts[levelIndex] = [''];
 
-  let currentYaml = textarea.value.trim();
-
-  // 解析现有节点获取配置模板
+  const firstNode = state.chain.node_texts[levelIndex][0] || '';
   let template = '';
-  const lines = currentYaml.split('\n');
 
-  if(currentYaml){
-    // 提取第一个节点作为模板
-    const nameMatch = currentYaml.match(/name:\s*(\S+)/);
-    const typeMatch = currentYaml.match(/type:\s*(\S+)/);
-    const serverMatch = currentYaml.match(/server:\s*(\S+)/);
-    const portMatch = currentYaml.match(/port:\s*(\d+)/);
-    const cipherMatch = currentYaml.match(/cipher:\s*(\S+)/);
+  if(firstNode.trim()){
+    const nameMatch = firstNode.match(/name:\s*(\S+)/);
+    const typeMatch = firstNode.match(/type:\s*(\S+)/);
+    const serverMatch = firstNode.match(/server:\s*(\S+)/);
+    const portMatch = firstNode.match(/port:\s*(\d+)/);
+    const cipherMatch = firstNode.match(/cipher:\s*(\S+)/);
 
     const baseName = nameMatch ? nameMatch[1].replace(/-(main|backup\d*)$/i, '') : 'chain-node';
-    const existingCount = (currentYaml.match(/- name:/g) || []).length;
+    const backupCount = state.chain.node_texts[levelIndex].length;
 
-    template = `
-# --- 备用节点 ${existingCount + 1} ---
-- name: ${baseName}-backup${existingCount}
+    template = `- name: ${baseName}-backup${backupCount}
   type: ${typeMatch ? typeMatch[1] : 'ss'}
   server: 备用服务器IP
   port: ${portMatch ? portMatch[1] : '18000'}
@@ -831,7 +861,6 @@ function addBackupNode(levelIndex){
   password: 备用密码
   udp: true`;
   } else {
-    // 默认模板
     template = `- name: chain-level${levelIndex+2}-backup1
   type: ss
   server: 备用服务器IP
@@ -841,18 +870,24 @@ function addBackupNode(levelIndex){
   udp: true`;
   }
 
-  // 追加到现有 YAML
-  textarea.value = currentYaml + template;
-  state.chain.node_texts[levelIndex] = textarea.value;
-
-  // 滚动到文本框底部
-  textarea.scrollTop = textarea.scrollHeight;
+  state.chain.node_texts[levelIndex].push(template);
+  renderChainNodes();
+}
+function removeBackupNode(levelIndex, nodeIndex){
+  if(state.chain.node_texts[levelIndex] && state.chain.node_texts[levelIndex].length > 1){
+    state.chain.node_texts[levelIndex].splice(nodeIndex, 1);
+    renderChainNodes();
+  }
+}
+function removeChainLevel(levelIndex){
+  state.chain.node_texts.splice(levelIndex, 1);
+  if(state.chain.node_texts.length === 0) state.chain.node_texts = [['']];
+  renderChainNodes();
 }
 async function removeChainNode(i){
-  state.chain.node_texts = Array.from(document.querySelectorAll('#chainNodes textarea')).map(ta => ta.value);
-  state.chain.node_texts.splice(i,1);
-  if(!state.chain.node_texts.length) state.chain.node_texts.push('');
-  renderChainNodes();
+  // 已废弃，由 removeChainLevel 替代
+  removeChainLevel(i);
+}
   const sw = document.getElementById('applySwitch');
   const label = document.getElementById('applySwitchText');
   const wasOn = !!(sw && sw.checked);
@@ -886,7 +921,7 @@ function applyReturnedState(data, options={}){
   if(data.state) state = data.state;
   else if(data.next_state) state = data.next_state;
   if(data.public_ip) publicIp = data.public_ip;
-  if(!state.chain) state.chain = {enabled:false, entry_text:'', node_texts:['']};
+  if(!state.chain) state.chain = {enabled:false, entry_text:'', node_texts:[['']]};
   document.getElementById('statusPill').textContent = data.container || document.getElementById('statusPill').textContent || '未知';
   const applySwitch = document.getElementById('applySwitch');
   const applySwitchText = document.getElementById('applySwitchText');
@@ -900,7 +935,7 @@ function applyReturnedState(data, options={}){
 }
 async function loadState(showConnectivity=false){
   try{
-    const data = await api('/api/state'); state = data.state; if(data.public_ip) publicIp = data.public_ip; if(!state.chain) state.chain={enabled:true,node_texts:['']};
+    const data = await api('/api/state'); state = data.state; if(data.public_ip) publicIp = data.public_ip; if(!state.chain) state.chain={enabled:true,node_texts:[['']]};
     document.getElementById('entryText').value = state.chain.entry_text || '';
     const applySwitch = document.getElementById('applySwitch');
     const applySwitchText = document.getElementById('applySwitchText');
@@ -936,9 +971,21 @@ async function collectFreshState(){
   document.querySelectorAll('#localCards .card input[type="checkbox"]').forEach((cb, i) => { if(state.local_services[i]) state.local_services[i].enabled = cb.checked; });
   state.chain.enabled = document.getElementById('applySwitch') ? document.getElementById('applySwitch').checked : true;
   state.chain.entry_text = document.getElementById('entryText').value;
-  state.chain.node_texts = Array.from(document.querySelectorAll('#chainNodes textarea')).map(ta => ta.value);
-  if(state.chain.entry_text.trim() && state.chain.node_texts.some(text => text.trim())){
-    const data = await api('/api/parse/chain', {entry_yaml:state.chain.entry_text, node_yamls:state.chain.node_texts});
+
+  // 收集二维 node_texts
+  const nodeLevels = [];
+  document.querySelectorAll('#chainNodes > div').forEach(levelBox => {
+    const levelNodes = [];
+    levelBox.querySelectorAll('textarea').forEach(ta => levelNodes.push(ta.value));
+    if(levelNodes.length > 0) nodeLevels.push(levelNodes);
+  });
+  state.chain.node_texts = nodeLevels;
+
+  // 扁平化传给 API
+  const flatNodeYamls = nodeLevels.flatMap(level => level.filter(n => n.trim()));
+
+  if(state.chain.entry_text.trim() && flatNodeYamls.length > 0){
+    const data = await api('/api/parse/chain', {entry_yaml:state.chain.entry_text, node_yamls:flatNodeYamls});
     state.chain.entry = data.entry; state.chain.nodes = data.nodes; state.chain.exit_proxy = data.exit_proxy; delete state.chain.group_name; renderChainPreview();
   } else {
     state.chain.entry = null; state.chain.nodes = []; state.chain.exit_proxy = ''; renderChainPreview();
@@ -947,12 +994,24 @@ async function collectFreshState(){
 }
 async function collectFreshChainState(){
   const latest = (await api('/api/state')).state || {version:1, local_services:[], managed:{listener_names:[], proxy_names:[], proxy_group_names:[]}};
-  latest.chain = latest.chain || {enabled:true, entry_text:'', node_texts:[''], entry:null, nodes:[]};
+  latest.chain = latest.chain || {enabled:true, entry_text:'', node_texts:[['']], entry:null, nodes:[]};
   latest.chain.enabled = document.getElementById('applySwitch') ? document.getElementById('applySwitch').checked : true;
   latest.chain.entry_text = document.getElementById('entryText').value;
-  latest.chain.node_texts = Array.from(document.querySelectorAll('#chainNodes textarea')).map(ta => ta.value);
-  if(latest.chain.entry_text.trim() && latest.chain.node_texts.some(text => text.trim())){
-    const data = await api('/api/parse/chain', {entry_yaml:latest.chain.entry_text, node_yamls:latest.chain.node_texts});
+
+  // 收集二维 node_texts
+  const nodeLevels = [];
+  document.querySelectorAll('#chainNodes > div').forEach(levelBox => {
+    const levelNodes = [];
+    levelBox.querySelectorAll('textarea').forEach(ta => levelNodes.push(ta.value));
+    if(levelNodes.length > 0) nodeLevels.push(levelNodes);
+  });
+  latest.chain.node_texts = nodeLevels;
+
+  // 扁平化传给 API
+  const flatNodeYamls = nodeLevels.flatMap(level => level.filter(n => n.trim()));
+
+  if(latest.chain.entry_text.trim() && flatNodeYamls.length > 0){
+    const data = await api('/api/parse/chain', {entry_yaml:latest.chain.entry_text, node_yamls:flatNodeYamls});
     latest.chain.entry = data.entry; latest.chain.nodes = data.nodes; latest.chain.exit_proxy = data.exit_proxy; delete latest.chain.group_name;
     state.chain = latest.chain; renderChainPreview();
   } else {
