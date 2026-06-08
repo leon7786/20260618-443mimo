@@ -1019,6 +1019,18 @@ async function testConnectivityOnly(btn){
   try{
     // 收集当前 UI 状态（包括未保存的链式代理配置）
     const freshState = await collectFreshChainState();
+
+    // 检测入口端口是否已应用
+    const entry = freshState.chain.entry;
+    const sw = document.getElementById('applySwitch');
+    if(entry && entry.port && (!sw || !sw.checked)){
+      const portCheckResult = await api('/api/check-port', {port: entry.port});
+      if(!portCheckResult.listening){
+        appendLog(`⚠️ 端口 ${entry.port} 未监听。链式代理配置未应用。`);
+        appendLog(`提示：打开开关并点击"应用当前配置"后再测试，或测试将使用 direct 模式。`);
+      }
+    }
+
     const data = await api('/api/connectivity-test', {state: freshState});
     const conn = data.connectivity;
     appendLog(connectivityLogLine(conn));
@@ -2530,6 +2542,24 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/performance":
                 result = apply_performance_settings(data.get("settings") or {})
                 json_response(self, 200 if result.get("ok") else 400, result)
+                return
+            if path == "/api/check-port":
+                port = data.get("port")
+                if not port:
+                    json_response(self, 400, {"ok": False, "error": "port required"})
+                    return
+                # 检测端口是否监听
+                import socket
+                listening = False
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(0.5)
+                    result = sock.connect_ex(('127.0.0.1', int(port)))
+                    listening = (result == 0)
+                    sock.close()
+                except Exception:
+                    listening = False
+                json_response(self, 200, {"ok": True, "port": port, "listening": listening})
                 return
             if path == "/api/connectivity-test":
                 # 支持传入临时 state 进行测试，或使用磁盘上已保存的 state
