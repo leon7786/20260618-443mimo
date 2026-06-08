@@ -120,7 +120,7 @@ HTML = r"""
     .log-block { display:block; padding:8px 10px; }
     .log-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 5px; }
     .log-block h2 { margin:0; font-size:13px; white-space:nowrap; color:#6f4b00; }
-    .log-output { height:130px; max-height:130px; overflow:auto; font-size:10.5px; line-height:1.35; white-space:pre-wrap; }
+    .log-output { height:520px; max-height:520px; overflow:auto; font-size:10.5px; line-height:1.35; white-space:pre-wrap; }
     .log-output.expanded { height:calc(60 * 1.35em + 18px); max-height:calc(60 * 1.35em + 18px); }
     .cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:10px; margin-top:10px; }
     .card { background:var(--card); border-color:#b6c7d6; transition:box-shadow .16s, border-color .16s; }
@@ -174,7 +174,7 @@ HTML = r"""
     .service-state.failed { color:var(--bad); }
     @media (min-width: 1500px) { .local-block .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } #chainNodes { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:10px; } }
     @media (max-width: 1180px) { main { grid-template-columns:1fr; grid-template-areas:"local" "chain" "log"; } }
-    @media (max-width: 760px) { header, main { width:min(100% - 20px, 1440px); } header { padding:14px; border-radius:8px; } section, .card { padding:12px; border-radius:8px; } .cards, #chainNodes { grid-template-columns:1fr; } .log-output { height:100px; max-height:100px; } }
+    @media (max-width: 760px) { header, main { width:min(100% - 20px, 1440px); } header { padding:14px; border-radius:8px; } section, .card { padding:12px; border-radius:8px; } .cards, #chainNodes { grid-template-columns:1fr; } .log-output { height:400px; max-height:400px; } }
   </style>
 </head>
 <body>

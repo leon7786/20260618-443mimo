@@ -89,7 +89,7 @@ chain:
   entry_text: "- name: chain-entry-http-2001\n  type: http\n  server: 0.0.0.0\n  port:\
     \ 2001\n  username: admin123\n  password: admin1234"
   node_texts:
-  - ''
+  - - ''
   entry: null
   nodes: []
   exit_proxy: ''
