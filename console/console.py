@@ -1013,17 +1013,13 @@ async function collectFreshChainState(){
   return JSON.parse(JSON.stringify(latest));
 }
 async function testConnectivityOnly(btn){
-  // 检查链式代理是否启用
-  const sw = document.getElementById('applySwitch');
-  if(!sw || !sw.checked){
-    appendLog('⚠️ 链式代理未启用，测试将使用 direct 模式（直连）。如需测试链式代理，请先打开开关并应用配置。');
-  }
-
   btn.disabled = true;
   btn.classList.remove('success', 'failed');
   setConnectionStatus('testing', '检测中', '700ms 超时，重试 1 次');
   try{
-    const data = await api('/api/connectivity-test', {});
+    // 收集当前 UI 状态（包括未保存的链式代理配置）
+    const freshState = await collectFreshChainState();
+    const data = await api('/api/connectivity-test', {state: freshState});
     const conn = data.connectivity;
     appendLog(connectivityLogLine(conn));
     if(conn && conn.ok){
@@ -2535,10 +2531,13 @@ class Handler(BaseHTTPRequestHandler):
                 json_response(self, 200 if result.get("ok") else 400, result)
                 return
             if path == "/api/connectivity-test":
-                state = load_yaml(STATE_PATH, default_state())
+                # 支持传入临时 state 进行测试，或使用磁盘上已保存的 state
+                state = data.get("state") if data.get("state") else load_yaml(STATE_PATH, default_state())
                 connectivity = test_google_connectivity_quick(state)
-                state["connectivity"] = connectivity
-                save_yaml_atomic(STATE_PATH, state)
+                # 只在未传入 state 时保存结果
+                if not data.get("state"):
+                    state["connectivity"] = connectivity
+                    save_yaml_atomic(STATE_PATH, state)
                 json_response(self, 200, {"ok": connectivity.get("ok", False), "connectivity": connectivity})
                 return
             if path == "/api/validate":
