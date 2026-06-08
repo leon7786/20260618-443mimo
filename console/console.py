@@ -518,6 +518,23 @@ function renderChainSwitchVisual(isOn){
   if(!wrap) return;
   if(isOn) wrap.classList.add('on');
   else wrap.classList.remove('on');
+
+  // 更新连通性测试按钮状态
+  updateConnectivityButton();
+}
+
+function updateConnectivityButton(){
+  const sw = document.getElementById('applySwitch');
+  const btn = document.getElementById('connectivityBtn');
+  if(!sw || !btn) return;
+
+  if(sw.checked){
+    btn.disabled = false;
+    btn.title = '';
+  } else {
+    btn.disabled = true;
+    btn.title = '请先打开左侧开关并应用配置';
+  }
 }
 function renderPerformanceSettings(settings){
   settings = settings || {};
@@ -936,6 +953,7 @@ async function loadState(showConnectivity=false){
       applySwitch.checked = state.chain.enabled !== false;
       applySwitchText.textContent = applySwitch.checked ? '已应用' : '应用当前配置';
       renderChainSwitchVisual(state.chain.enabled !== false);
+      updateConnectivityButton();
     }
     document.getElementById('statusPill').textContent = data.container || '未知';
     renderPerformanceSettings(data.performance || {});
@@ -1077,10 +1095,42 @@ async function applyConfig(toggle){
     applyReturnedState(data, {syncSwitch:false});
     label.textContent = targetOn ? '已应用' : '已停止';
     const conn = data.connectivity;
+
     if(targetOn && conn && conn.ok){
       setConnectionStatus('connected', connectivityBadgeText(conn), connectivityDetail(conn));
       sw.checked = true;
       renderChainSwitchVisual(true);
+    } else if(targetOn && conn && !conn.ok) {
+      // 第一次测试失败，重试 3 次（每次超时 1 秒）
+      appendLog('⚠️ 首次连通性测试失败，将进行 3 次重试（每次超时 1 秒）...');
+      let retrySuccess = false;
+      for(let i = 1; i <= 3; i++){
+        await new Promise(r => setTimeout(r, 500));
+        const retryData = await api('/api/connectivity-test-retry', {state: freshState});
+        const retryConn = retryData.connectivity;
+        appendLog(`重试 ${i}/3: ${retryConn.ok ? '成功 ✓' : '失败 ✗'} (${retryConn.elapsed_ms}ms)`);
+        if(retryConn.ok){
+          retrySuccess = true;
+          setConnectionStatus('connected', connectivityBadgeText(retryConn), connectivityDetail(retryConn));
+          break;
+        }
+      }
+
+      if(!retrySuccess){
+        appendLog('❌ 连续 3 次测试失败，自动回退配置');
+        // 回退：禁用链式代理
+        const rollbackState = await collectFreshChainState();
+        rollbackState.chain.enabled = false;
+        const rollbackData = await api('/api/apply', {state: rollbackState});
+        out(rollbackData);
+        sw.checked = false;
+        renderChainSwitchVisual(false);
+        setConnectionStatus('failed', '回退成功', '连续测试失败已自动回退');
+        label.textContent = '已回退';
+      } else {
+        sw.checked = true;
+        renderChainSwitchVisual(true);
+      }
     } else if(targetOn) {
       setConnectionStatus('failed', connectivityBadgeText(conn), connectivityDetail(conn));
       sw.checked = true;
@@ -2130,6 +2180,23 @@ def test_google_connectivity_quick(state=None):
     return {"ok": False, "checked_at": checked_at, "target": target, "mode": mode, "attempt": last_result.get("attempt"), "returncode": last_result.get("returncode"), "elapsed_ms": last_result.get("elapsed_ms"), "output": last_result.get("output", "")[-2000:]}
 
 
+def test_google_connectivity_retry(state=None):
+    """重试版本：单次测试，超时 1 秒"""
+    checked_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    target, mode, cmd = google_connectivity_command(state)
+    cmd = cmd[:]
+    cmd[1:1] = ["--max-time", "1", "--connect-timeout", "1"]
+    try:
+        start = time.monotonic()
+        result = command_result(cmd, 2)
+        result["elapsed_ms"] = int((time.monotonic() - start) * 1000)
+        if result["ok"]:
+            return {"ok": True, "checked_at": checked_at, "target": target, "mode": mode, "returncode": result["returncode"], "elapsed_ms": result["elapsed_ms"], "output": result["output"][-2000:]}
+        return {"ok": False, "checked_at": checked_at, "target": target, "mode": mode, "returncode": result.get("returncode"), "elapsed_ms": result["elapsed_ms"], "output": result.get("output", "")[-2000:]}
+    except Exception as e:
+        return {"ok": False, "checked_at": checked_at, "target": target, "mode": mode, "returncode": -1, "elapsed_ms": None, "output": str(e)}
+
+
 def write_candidate(config):
     fd, path = tempfile.mkstemp(prefix="config.yaml.", suffix=".pending", dir=str(APP_DIR))
     with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -2569,6 +2636,12 @@ class Handler(BaseHTTPRequestHandler):
                 if not data.get("state"):
                     state["connectivity"] = connectivity
                     save_yaml_atomic(STATE_PATH, state)
+                json_response(self, 200, {"ok": connectivity.get("ok", False), "connectivity": connectivity})
+                return
+            if path == "/api/connectivity-test-retry":
+                # 重试测试（超时 1 秒）
+                state = data.get("state") if data.get("state") else load_yaml(STATE_PATH, default_state())
+                connectivity = test_google_connectivity_retry(state)
                 json_response(self, 200, {"ok": connectivity.get("ok", False), "connectivity": connectivity})
                 return
             if path == "/api/validate":
