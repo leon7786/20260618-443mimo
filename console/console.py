@@ -159,6 +159,12 @@ HTML = r"""
     .connection.testing { color:var(--accent); border-color:rgba(37,99,235,.25); background:var(--accent-soft); }
     .connection.testing .dot { background:var(--accent); box-shadow:0 0 0 4px rgba(37,99,235,.16), 0 0 14px rgba(37,99,235,.42); }
     .connection-detail { color:var(--muted); font-size:12px; margin-left:8px; }
+    .dns-group { display:inline-flex; align-items:center; gap:6px; border:1px solid #b8c8d8; border-radius:6px; padding:4px; background:rgba(255,255,255,.72); }
+    .dns-option { margin:0; color:#244760; font-size:12px; cursor:pointer; white-space:nowrap; }
+    .dns-option input { position:absolute; opacity:0; pointer-events:none; }
+    .dns-option span { display:block; padding:6px 10px; border:1px solid #9cb2c5; border-radius:4px; background:linear-gradient(180deg, #ffffff, #edf4fa); box-shadow:0 1px 3px rgba(35,59,83,.10); }
+    .dns-option input:checked + span { color:#fff; border-color:#0f5687; background:linear-gradient(180deg, #3d91ce, #1f6fa8); box-shadow:0 4px 10px rgba(37,99,235,.18); }
+    .dns-option input:disabled + span { opacity:.55; cursor:not-allowed; }
     .protocol-group { display:inline-flex; align-items:center; gap:6px; border:1px solid #b8c8d8; border-radius:6px; padding:4px; background:rgba(255,255,255,.72); flex-wrap:wrap; }
     .protocol-group button.action-add { padding:6px 10px; border-radius:4px; box-shadow:0 1px 3px rgba(35,59,83,.10); }
     .perf-panel { margin:10px 0; padding:8px 10px; border:1px solid #c3d2df; border-radius:6px; background:linear-gradient(180deg, #ffffff, #edf4fa); }
@@ -195,7 +201,7 @@ HTML = r"""
   </section>
 
   <section class="local-block">
-    <div class="row" style="justify-content:space-between; margin-bottom:12px"><h2 style="margin:0">搭建本地服务端</h2><div class="row"><div class="dns-group" style="margin-right:12px"><span style="font-size:13px;color:#666;margin-right:6px">DNS:</span><button class="secondary" onclick="setGlobalDns('1.1.1.1')" style="padding:4px 10px">1.1.1.1</button><button class="secondary" onclick="setGlobalDns('8.8.4.4')" style="padding:4px 10px">8.8.4.4</button><button class="secondary" onclick="setGlobalDns('local')" style="padding:4px 10px">本地</button></div><div class="protocol-group"><button class="action-add" onclick="addLocalService('tuic')">TUIC</button><button class="action-add" onclick="addLocalService('hysteria2')">Hysteria2</button><button class="action-add" onclick="addLocalService('anytls')">AnyTLS</button><button class="action-add" onclick="addLocalService('ss')">SS</button><button class="action-add" onclick="addLocalService('http')">HTTP</button><button class="action-add" onclick="addLocalService('socks')">SOCKS5</button></div></div></div>
+    <div class="row" style="justify-content:space-between; margin-bottom:12px"><h2 style="margin:0">搭建本地服务端</h2><div class="row"><div class="dns-group"><label class="dns-option"><input type="radio" name="globalDns" value="1.1.1.1" onchange="setGlobalDns(this.value)"><span>1.1.1.1</span></label><label class="dns-option"><input type="radio" name="globalDns" value="8.8.4.4" onchange="setGlobalDns(this.value)"><span>8.8.4.4</span></label><label class="dns-option"><input type="radio" name="globalDns" value="local" checked onchange="setGlobalDns(this.value)"><span>本地</span></label></div><div class="protocol-group"><button class="action-add" onclick="addLocalService('tuic')">TUIC</button><button class="action-add" onclick="addLocalService('hysteria2')">Hysteria2</button><button class="action-add" onclick="addLocalService('anytls')">AnyTLS</button><button class="action-add" onclick="addLocalService('ss')">SS</button><button class="action-add" onclick="addLocalService('http')">HTTP</button><button class="action-add" onclick="addLocalService('socks')">SOCKS5</button></div></div></div>
     <textarea id="localPaste" placeholder="也可以手动粘贴单个服务端 YAML，再点手动增加"></textarea>
     <div class="row" style="margin-top:10px"><button class="action-add" onclick="parseLocal()">手动增加服务端</button><span class="muted">点击标题右侧协议按钮会直接新增一个默认关闭的服务端卡片。</span></div>
     <div id="localCards" class="cards"></div>
