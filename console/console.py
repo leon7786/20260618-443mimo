@@ -2062,7 +2062,8 @@ def google_connectivity_command(state=None):
     target = "https://www.google.com/generate_204"
     cmd = ["curl", "-I", "-L", target]
     mode = "direct"
-    if chain.get("enabled") and entry_port and entry_type in ("http", "socks"):
+    # 只要有 entry 配置就使用链式代理测试，不检查 enabled 开关
+    if entry_port and entry_type in ("http", "socks"):
         users = entry.get("users") or []
         proxy_args = []
         if users and isinstance(users[0], dict) and users[0].get("username"):
