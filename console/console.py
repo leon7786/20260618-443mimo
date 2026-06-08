@@ -780,7 +780,8 @@ function renderChainNodes(){
   const el = document.getElementById('chainNodes'); el.innerHTML='';
   (state.chain.node_texts||['']).forEach((txt, i) => {
     const box = document.createElement('div'); box.className='card';
-    box.innerHTML = `<div class="card-head"><div class="card-title"><h3>第${i+2}级节点</h3><span class="pill">${escapeHtml(chainNodeInfo(txt))}</span></div><button class="action-danger" onclick="removeChainNode(${i})">删除</button></div><div class="yaml-wrap"><textarea oninput="state.chain.node_texts[${i}]=this.value">${escapeHtml(txt)}</textarea></div>`;
+    const hint = i === 0 ? '<div class="muted" style="font-size:12px;margin-top:4px;">💡 可输入多个节点 YAML（用 --- 分隔或多个 - name 块），自动生成故障切换组</div>' : '';
+    box.innerHTML = `<div class="card-head"><div class="card-title"><h3>第${i+2}级节点</h3><span class="pill">${escapeHtml(chainNodeInfo(txt))}</span></div><button class="action-danger" onclick="removeChainNode(${i})">删除</button></div>${hint}<div class="yaml-wrap"><textarea oninput="state.chain.node_texts[${i}]=this.value">${escapeHtml(txt)}</textarea></div>`;
     el.appendChild(box);
   });
   initUndoForTextControls(el);
@@ -1417,16 +1418,28 @@ def normalize_entry_listener(text):
 
 
 def normalize_chain_nodes(texts):
+    """解析链式节点，支持同级多节点自动生成 urltest 组"""
     nodes = []
+    levels = []  # 每一级的节点列表
+
     for text in texts:
         if text and text.strip():
+            level_nodes = []
             for node in parse_yaml_snippet(text):
                 if "name" not in node or "type" not in node:
                     raise ValueError("链路节点必须包含 name 和 type")
-                nodes.append(node)
-    if not nodes:
+                level_nodes.append(node)
+            if level_nodes:
+                levels.append(level_nodes)
+
+    if not levels:
         raise ValueError("至少需要一个第二级节点")
-    return nodes
+
+    # 扁平化所有节点
+    for level in levels:
+        nodes.extend(level)
+
+    return nodes, levels
 
 
 def parse_listener_yaml(service, used_names=None):
@@ -1557,14 +1570,51 @@ def build_managed_objects(state, used_listener_names=None, split_route=True):
     if chain.get("enabled") and chain.get("entry") and chain.get("nodes"):
         entry = copy.deepcopy(chain["entry"])
         nodes = copy.deepcopy(chain["nodes"])
-        for index in range(1, len(nodes)):
-            nodes[index]["dialer-proxy"] = nodes[index - 1]["name"]
+
+        # 重新解析获取分级信息
+        node_texts = [chain.get("entry_text")] + (chain.get("node_texts") or [])
+        _, levels = normalize_chain_nodes(chain.get("node_texts") or [])
+
+        # 为每级多节点创建 urltest 组
+        previous_target = None  # 上一级的目标（单节点名或 urltest 组名）
+
+        for level_index, level_nodes in enumerate(levels):
+            if len(level_nodes) == 1:
+                # 单节点，直接串联
+                node = level_nodes[0]
+                if previous_target:
+                    node["dialer-proxy"] = previous_target
+                previous_target = node["name"]
+                proxies.append(node)
+            else:
+                # 多节点，创建 urltest 组
+                group_name = f"chain-level{level_index+2}-urltest"
+
+                # 所有同级节点的 dialer-proxy 指向上一级
+                for node in level_nodes:
+                    if previous_target:
+                        node["dialer-proxy"] = previous_target
+                    proxies.append(node)
+
+                # 创建 urltest 组
+                urltest_group = {
+                    "name": group_name,
+                    "type": "url-test",
+                    "proxies": [node["name"] for node in level_nodes],
+                    "url": "https://www.gstatic.com/generate_204",
+                    "interval": 300,
+                    "tolerance": 50,
+                }
+                groups.append(urltest_group)
+                previous_target = group_name
+
+        # 入口节点的 proxy 指向最后一级
         if split_route:
             entry.pop("proxy", None)
         else:
-            entry["proxy"] = nodes[-1]["name"]
+            entry["proxy"] = previous_target
+
         listeners.append(entry)
-        proxies.extend(nodes)
     return listeners, proxies, groups
 
 
@@ -2311,8 +2361,11 @@ class Handler(BaseHTTPRequestHandler):
                 entry_text = data.get("entry_yaml", "")
                 node_texts = data.get("node_yamls") or []
                 entry = normalize_entry_listener(entry_text)
-                nodes = normalize_chain_nodes(node_texts)
-                json_response(self, 200, {"ok": True, "entry": entry, "nodes": nodes, "exit_proxy": nodes[-1]["name"]})
+                nodes, levels = normalize_chain_nodes(node_texts)
+                # 返回最后一级的代表节点名或 urltest 组名
+                last_level = levels[-1] if levels else []
+                exit_proxy = f"chain-level{len(levels)+1}-urltest" if len(last_level) > 1 else (last_level[0]["name"] if last_level else nodes[-1]["name"])
+                json_response(self, 200, {"ok": True, "entry": entry, "nodes": nodes, "exit_proxy": exit_proxy})
                 return
             if path == "/api/local-node":
                 listener = parse_listener_yaml(data.get("service") or {})
