@@ -89,7 +89,32 @@ chain:
   entry_text: "- name: chain-entry-http-2001\n  type: http\n  server: 0.0.0.0\n  port:\
     \ 2001\n  username: admin123\n  password: admin1234"
   node_texts:
-  - - ''
+  - - 'name: 101.112217.xyz
+
+      type: shadowsocks
+
+      listen: 101.112217.xyz
+
+      port: 12093
+
+      cipher: 2022-blake3-aes-128-gcm
+
+      password: ZnVHrxWfQFmUQ+1OsyakOA==
+
+      udp: true'
+    - 'name: 102.112217.xyz
+
+      type: shadowsocks
+
+      listen: 102.112217.xyz
+
+      port: 12093
+
+      cipher: 2022-blake3-aes-128-gcm
+
+      password: ZnVHrxWfQFmUQ+1OsyakOA==
+
+      udp: true'
   entry: null
   nodes: []
   exit_proxy: ''
@@ -108,4 +133,4 @@ performance:
   ipv6: false
   connection_timeout: 5
   log_level: info
-  tproxy: true
+  tproxy: false

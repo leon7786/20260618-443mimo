@@ -23,7 +23,6 @@ dns:
     - 223.5.5.5
     - 180.76.76.76
     - 119.29.29.29
-  listen: 0.0.0.0:1053
 listeners:
 - name: chain-entry-http-2002
   type: http
@@ -91,5 +90,3 @@ proxies:
   cipher: aes-128-gcm
   password: 25b40997-2d5f-4996-bb71-33a5975dfa36
   udp: true
-redir-port: 7892
-routing-mark: 255

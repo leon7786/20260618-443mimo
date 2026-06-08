@@ -1532,19 +1532,36 @@ def normalize_entry_listener(text):
 
 
 def normalize_chain_nodes(texts):
-    """解析链式节点，支持同级多节点自动生成 urltest 组"""
+    """解析链式节点，支持同级多节点自动生成 urltest 组
+
+    支持格式：
+    - 旧格式：['yaml1', 'yaml2']  # 每个字符串代表一级
+    - 新格式：[['yaml1', 'backup1'], ['yaml2']]  # 二维数组，支持同级备用
+    """
     nodes = []
     levels = []  # 每一级的节点列表
 
-    for text in texts:
-        if text and text.strip():
-            level_nodes = []
-            for node in parse_yaml_snippet(text):
-                if "name" not in node or "type" not in node:
-                    raise ValueError("链路节点必须包含 name 和 type")
-                level_nodes.append(node)
-            if level_nodes:
-                levels.append(level_nodes)
+    # 兼容旧格式：如果是字符串列表，转换为二维数组
+    if texts and isinstance(texts[0], str):
+        texts = [[t] for t in texts]
+
+    for level_texts in texts:
+        # level_texts 是列表，包含该级别的所有节点 YAML
+        level_nodes = []
+
+        # 确保是列表
+        if isinstance(level_texts, str):
+            level_texts = [level_texts]
+
+        for text in level_texts:
+            if text and text.strip():
+                for node in parse_yaml_snippet(text):
+                    if "name" not in node or "type" not in node:
+                        raise ValueError("链路节点必须包含 name 和 type")
+                    level_nodes.append(node)
+
+        if level_nodes:
+            levels.append(level_nodes)
 
     if not levels:
         raise ValueError("至少需要一个第二级节点")
