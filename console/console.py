@@ -1013,6 +1013,12 @@ async function collectFreshChainState(){
   return JSON.parse(JSON.stringify(latest));
 }
 async function testConnectivityOnly(btn){
+  // 检查链式代理是否启用
+  const sw = document.getElementById('applySwitch');
+  if(!sw || !sw.checked){
+    appendLog('⚠️ 链式代理未启用，测试将使用 direct 模式（直连）。如需测试链式代理，请先打开开关并应用配置。');
+  }
+
   btn.disabled = true;
   btn.classList.remove('success', 'failed');
   setConnectionStatus('testing', '检测中', '700ms 超时，重试 1 次');
