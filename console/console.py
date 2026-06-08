@@ -780,11 +780,73 @@ function renderChainNodes(){
   const el = document.getElementById('chainNodes'); el.innerHTML='';
   (state.chain.node_texts||['']).forEach((txt, i) => {
     const box = document.createElement('div'); box.className='card';
-    const hint = i === 0 ? '<div class="muted" style="font-size:12px;margin-top:4px;">💡 可输入多个节点 YAML（用 --- 分隔或多个 - name 块），自动生成故障切换组</div>' : '';
-    box.innerHTML = `<div class="card-head"><div class="card-title"><h3>第${i+2}级节点</h3><span class="pill">${escapeHtml(chainNodeInfo(txt))}</span></div><button class="action-danger" onclick="removeChainNode(${i})">删除</button></div>${hint}<div class="yaml-wrap"><textarea oninput="state.chain.node_texts[${i}]=this.value">${escapeHtml(txt)}</textarea></div>`;
+    box.innerHTML = `
+      <div class="card-head">
+        <div class="card-title">
+          <h3>第${i+2}级节点</h3>
+          <span class="pill">${escapeHtml(chainNodeInfo(txt))}</span>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="action-copy" onclick="addBackupNode(${i})" title="添加备用节点">+ 备用</button>
+          <button class="action-danger" onclick="removeChainNode(${i})">删除</button>
+        </div>
+      </div>
+      <div class="yaml-wrap">
+        <textarea oninput="state.chain.node_texts[${i}]=this.value">${escapeHtml(txt)}</textarea>
+      </div>
+    `;
     el.appendChild(box);
   });
   initUndoForTextControls(el);
+}
+function addBackupNode(levelIndex){
+  // 获取当前级别的 YAML
+  const textarea = document.querySelectorAll('#chainNodes textarea')[levelIndex];
+  if(!textarea) return;
+
+  let currentYaml = textarea.value.trim();
+
+  // 解析现有节点获取配置模板
+  let template = '';
+  const lines = currentYaml.split('\n');
+  const firstNode = lines.filter(l => l.trim() && !l.trim().startsWith('#'));
+
+  if(firstNode.length > 0){
+    // 提取第一个节点作为模板
+    const nameMatch = currentYaml.match(/name:\s*(\S+)/);
+    const typeMatch = currentYaml.match(/type:\s*(\S+)/);
+    const serverMatch = currentYaml.match(/server:\s*(\S+)/);
+    const portMatch = currentYaml.match(/port:\s*(\d+)/);
+
+    const baseName = nameMatch ? nameMatch[1].replace(/-\d+$/, '') : 'chain-node';
+    const existingCount = (currentYaml.match(/- name:/g) || []).length;
+
+    template = `- name: ${baseName}-backup${existingCount}
+  type: ${typeMatch ? typeMatch[1] : 'ss'}
+  server: 备用服务器IP
+  port: ${portMatch ? portMatch[1] : '18000'}
+  cipher: aes-128-gcm
+  password: 备用密码
+  udp: true`;
+  } else {
+    // 默认模板
+    template = `- name: chain-level${levelIndex+2}-backup1
+  type: ss
+  server: 备用服务器IP
+  port: 18000
+  cipher: aes-128-gcm
+  password: 备用密码
+  udp: true`;
+  }
+
+  // 追加到现有 YAML
+  const separator = currentYaml ? '\n' : '';
+  textarea.value = currentYaml + separator + template;
+  state.chain.node_texts[levelIndex] = textarea.value;
+
+  // 滚动到文本框底部
+  textarea.scrollTop = textarea.scrollHeight;
+  renderChainNodes();
 }
 async function removeChainNode(i){
   state.chain.node_texts = Array.from(document.querySelectorAll('#chainNodes textarea')).map(ta => ta.value);

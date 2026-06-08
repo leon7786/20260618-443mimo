@@ -200,6 +200,53 @@ http://用户名:密码@127.0.0.1:2002
 
 注意：不要把真实用户名密码写进 README、脚本日志、issue、提交信息。
 
+### 链式节点备用功能
+
+支持为链式代理的第2级（及后续）节点配置备用节点，实现故障自动切换。
+
+**使用方法：**
+
+1. 访问 http://VPS_IP:2000/
+2. 在"第2级节点"输入框填入主节点 YAML
+3. 点击 **+ 备用** 按钮，自动追加备用节点模板
+4. 修改备用节点的 IP、端口、密码
+
+**效果：**
+- 自动生成 `chain-level2-urltest` 故障切换组
+- 每 300s 测速，选择延迟最低节点
+- 主节点故障自动切换到备用节点
+- 主节点恢复后自动切回
+
+**手动配置示例：**
+
+```yaml
+# 第2级节点（双节点备用）
+- name: level2-main
+  type: ss
+  server: 主节点IP
+  port: 18000
+  cipher: aes-128-gcm
+  password: 密码
+  udp: true
+- name: level2-backup
+  type: ss
+  server: 备用IP
+  port: 18001
+  cipher: aes-128-gcm
+  password: 密码
+  udp: true
+```
+
+生成配置：
+```yaml
+proxy-groups:
+- name: chain-level2-urltest
+  type: url-test
+  proxies: [level2-main, level2-backup]
+  url: https://www.gstatic.com/generate_204
+  interval: 300
+```
+
 ## 多节点故障切换
 
 当 `config.yaml` 中有多个 (≥2) 独立代理节点时，自动生成故障切换组：
