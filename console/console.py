@@ -809,23 +809,25 @@ function addBackupNode(levelIndex){
   // 解析现有节点获取配置模板
   let template = '';
   const lines = currentYaml.split('\n');
-  const firstNode = lines.filter(l => l.trim() && !l.trim().startsWith('#'));
 
-  if(firstNode.length > 0){
+  if(currentYaml){
     // 提取第一个节点作为模板
     const nameMatch = currentYaml.match(/name:\s*(\S+)/);
     const typeMatch = currentYaml.match(/type:\s*(\S+)/);
     const serverMatch = currentYaml.match(/server:\s*(\S+)/);
     const portMatch = currentYaml.match(/port:\s*(\d+)/);
+    const cipherMatch = currentYaml.match(/cipher:\s*(\S+)/);
 
-    const baseName = nameMatch ? nameMatch[1].replace(/-\d+$/, '') : 'chain-node';
+    const baseName = nameMatch ? nameMatch[1].replace(/-(main|backup\d*)$/i, '') : 'chain-node';
     const existingCount = (currentYaml.match(/- name:/g) || []).length;
 
-    template = `- name: ${baseName}-backup${existingCount}
+    template = `
+# --- 备用节点 ${existingCount + 1} ---
+- name: ${baseName}-backup${existingCount}
   type: ${typeMatch ? typeMatch[1] : 'ss'}
   server: 备用服务器IP
   port: ${portMatch ? portMatch[1] : '18000'}
-  cipher: aes-128-gcm
+  cipher: ${cipherMatch ? cipherMatch[1] : 'aes-128-gcm'}
   password: 备用密码
   udp: true`;
   } else {
@@ -840,13 +842,11 @@ function addBackupNode(levelIndex){
   }
 
   // 追加到现有 YAML
-  const separator = currentYaml ? '\n' : '';
-  textarea.value = currentYaml + separator + template;
+  textarea.value = currentYaml + template;
   state.chain.node_texts[levelIndex] = textarea.value;
 
   // 滚动到文本框底部
   textarea.scrollTop = textarea.scrollHeight;
-  renderChainNodes();
 }
 async function removeChainNode(i){
   state.chain.node_texts = Array.from(document.querySelectorAll('#chainNodes textarea')).map(ta => ta.value);
