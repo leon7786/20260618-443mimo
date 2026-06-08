@@ -1,0 +1,5 @@
+username: admin12
+algorithm: pbkdf2_sha256
+iterations: 200000
+salt: ej6aHTCYtHJO7DmHN0C20g==
+hash: xT2zp/fgKP5SM1jPu3wvDpFP43ML10WBcdZX29VM/Zk=

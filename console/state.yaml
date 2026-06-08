@@ -1,0 +1,123 @@
+version: 1
+local_services:
+- id: tuic-0.0.0.0-7d4f06
+  enabled: false
+  listener:
+    name: tuic-0.0.0.0-7d4f06
+    type: tuic
+    listen: 0.0.0.0
+    port: 2087
+    users:
+      667547af-159f-4059-9443-ed4eb326a438: ZOwpXCwS7v5_0aJqn3XP9EKi
+    certificate: ./certs/server.crt
+    private-key: ./certs/server.key
+    congestion-controller: bbr
+    max-idle-time: 30000
+    authentication-timeout: 2000
+    alpn:
+    - h3
+    max-udp-relay-packet-size: 1400
+  listener_yaml: "name: tuic-0.0.0.0-7d4f06\ntype: tuic\nlisten: 0.0.0.0\nport: 2087\n\
+    users:\n  667547af-159f-4059-9443-ed4eb326a438: ZOwpXCwS7v5_0aJqn3XP9EKi\ncertificate:\
+    \ ./certs/server.crt\nprivate-key: ./certs/server.key\ncongestion-controller:\
+    \ bbr\nmax-idle-time: 30000\nauthentication-timeout: 2000\nalpn:\n- h3\nmax-udp-relay-packet-size:\
+    \ 1400"
+- id: hysteria2-0.0.0.0-53151f
+  enabled: false
+  listener:
+    name: hysteria2-0.0.0.0-53151f
+    type: hysteria2
+    listen: 0.0.0.0
+    port: 2055
+    users:
+      mimo: 667547af-159f-4059-9443-ed4eb326a438
+    up: 200 Mbps
+    down: 200 Mbps
+    ignore-client-bandwidth: false
+    obfs: salamander
+    obfs-password: OWQwMjliNDEwYjA2OWQwMw==
+    masquerade: ''
+    alpn:
+    - h3
+    certificate: ./certs/server.crt
+    private-key: ./certs/server.key
+  listener_yaml: "name: hysteria2-0.0.0.0-53151f\ntype: hysteria2\nlisten: 0.0.0.0\n\
+    port: 2055\nusers:\n  mimo: 667547af-159f-4059-9443-ed4eb326a438\nup: 200 Mbps\n\
+    down: 200 Mbps\nignore-client-bandwidth: false\nobfs: salamander\nobfs-password:\
+    \ OWQwMjliNDEwYjA2OWQwMw==\nmasquerade: ''\nalpn:\n- h3\ncertificate: ./certs/server.crt\n\
+    private-key: ./certs/server.key"
+- id: anytls-0.0.0.0-668067
+  enabled: false
+  listener:
+    name: anytls-0.0.0.0-668067
+    type: anytls
+    listen: 0.0.0.0
+    port: 2096
+    users:
+      mimo: 667547af-159f-4059-9443-ed4eb326a438
+    certificate: ./certs/server.crt
+    private-key: ./certs/server.key
+    padding-scheme: ''
+  listener_yaml: "name: anytls-0.0.0.0-668067\ntype: anytls\nlisten: 0.0.0.0\nport:\
+    \ 2096\nusers:\n  mimo: 667547af-159f-4059-9443-ed4eb326a438\ncertificate: ./certs/server.crt\n\
+    private-key: ./certs/server.key\npadding-scheme: ''"
+- id: ss-0.0.0.0-7043e9
+  enabled: false
+  listener:
+    name: ss-0.0.0.0-7043e9
+    type: shadowsocks
+    listen: 0.0.0.0
+    port: 2093
+    cipher: 2022-blake3-aes-128-gcm
+    password: ZnVHrxWfQFmUQ+1OsyakOA==
+    udp: true
+  listener_yaml: 'name: ss-0.0.0.0-7043e9
+
+    type: shadowsocks
+
+    listen: 0.0.0.0
+
+    port: 2093
+
+    cipher: 2022-blake3-aes-128-gcm
+
+    password: ZnVHrxWfQFmUQ+1OsyakOA==
+
+    udp: true'
+chain:
+  enabled: false
+  entry_text: "- name: chain-entry-http-2001\n  type: http\n  server: 0.0.0.0\n  port:\
+    \ 2001\n  username: admin123\n  password: admin1234"
+  node_texts:
+  - 'name: 43.136.66.83
+
+    type: shadowsocks
+
+    listen: 43.136.66.83
+
+    port: 12093
+
+    cipher: 2022-blake3-aes-128-gcm
+
+    password: ZnVHrxWfQFmUQ+1OsyakOA==
+
+    udp: true'
+  entry: null
+  nodes: []
+  exit_proxy: ''
+managed:
+  listener_names: []
+  proxy_names: []
+  proxy_group_names:
+  - 节点选择
+connectivity: null
+performance:
+  keep_alive: true
+  tcp_concurrent: true
+  unified_delay: true
+  fake_ip: false
+  split_route: true
+  ipv6: false
+  connection_timeout: 5
+  log_level: info
+  tproxy: true
