@@ -72,8 +72,7 @@ connectivity:
   returncode: 0
   target: https://www.google.com/generate_204
 local_services:
-- dns_upstream: 8.8.4.4
-  enabled: false
+- enabled: false
   id: tuic-0.0.0.0-7d4f06
   listener:
     alpn:

@@ -195,7 +195,7 @@ HTML = r"""
   </section>
 
   <section class="local-block">
-    <div class="row" style="justify-content:space-between; margin-bottom:12px"><h2 style="margin:0">搭建本地服务端</h2><div class="row"><div class="protocol-group"><button class="action-add" onclick="addLocalService('tuic')">TUIC</button><button class="action-add" onclick="addLocalService('hysteria2')">Hysteria2</button><button class="action-add" onclick="addLocalService('anytls')">AnyTLS</button><button class="action-add" onclick="addLocalService('ss')">SS</button><button class="action-add" onclick="addLocalService('http')">HTTP</button><button class="action-add" onclick="addLocalService('socks')">SOCKS5</button></div></div></div>
+    <div class="row" style="justify-content:space-between; margin-bottom:12px"><h2 style="margin:0">搭建本地服务端</h2><div class="row"><div class="dns-group" style="margin-right:12px"><span style="font-size:13px;color:#666;margin-right:6px">DNS:</span><button class="secondary" onclick="setGlobalDns('1.1.1.1')" style="padding:4px 10px">1.1.1.1</button><button class="secondary" onclick="setGlobalDns('8.8.4.4')" style="padding:4px 10px">8.8.4.4</button><button class="secondary" onclick="setGlobalDns('local')" style="padding:4px 10px">本地</button></div><div class="protocol-group"><button class="action-add" onclick="addLocalService('tuic')">TUIC</button><button class="action-add" onclick="addLocalService('hysteria2')">Hysteria2</button><button class="action-add" onclick="addLocalService('anytls')">AnyTLS</button><button class="action-add" onclick="addLocalService('ss')">SS</button><button class="action-add" onclick="addLocalService('http')">HTTP</button><button class="action-add" onclick="addLocalService('socks')">SOCKS5</button></div></div></div>
     <textarea id="localPaste" placeholder="也可以手动粘贴单个服务端 YAML，再点手动增加"></textarea>
     <div class="row" style="margin-top:10px"><button class="action-add" onclick="parseLocal()">手动增加服务端</button><span class="muted">点击标题右侧协议按钮会直接新增一个默认关闭的服务端卡片。</span></div>
     <div id="localCards" class="cards"></div>
@@ -583,6 +583,14 @@ async function applyPerformanceSettings(){
   } finally {
     setPerformanceDisabled(false);
   }
+}
+function setGlobalDns(choice){
+  out(`正在设置所有服务端 DNS 为：${choice === 'local' ? '本地' : choice}`);
+  (state.local_services || []).forEach(svc => {
+    svc.dns_upstream = choice;
+  });
+  renderLocalCards();
+  out(`已设置 ${state.local_services.length} 个服务端的 DNS 上游。`);
 }
 function currentLocalServiceNames(){
   const names = [];
