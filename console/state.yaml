@@ -123,7 +123,18 @@ managed:
   proxy_names: []
   proxy_group_names:
   - 节点选择
-connectivity: null
+connectivity:
+  ok: false
+  checked_at: '2026-06-09 04:03:15'
+  target: https://www.google.com/generate_204
+  mode: direct
+  attempt: 2
+  returncode: 28
+  elapsed_ms: 705
+  output: "  % Total    % Received % Xferd  Average Speed  Time    Time    Time  \
+    \ Current\n                                 Dload  Upload  Total   Spent   Left\
+    \   Speed\n\n  0      0   0      0   0      0      0      0                  \
+    \            0\ncurl: (28) Connection timed out after 702 milliseconds\n"
 performance:
   keep_alive: true
   tcp_concurrent: true

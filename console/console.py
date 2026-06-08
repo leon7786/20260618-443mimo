@@ -1558,6 +1558,11 @@ def normalize_chain_nodes(texts):
                 for node in parse_yaml_snippet(text):
                     if "name" not in node or "type" not in node:
                         raise ValueError("链路节点必须包含 name 和 type")
+
+                    # 修正常见错误：proxy 节点使用 listen 而不是 server
+                    if "listen" in node and "server" not in node:
+                        node["server"] = node.pop("listen")
+
                     level_nodes.append(node)
 
         if level_nodes:
