@@ -922,6 +922,14 @@ function applyReturnedState(data, options={}){
   else if(data.next_state) state = data.next_state;
   if(data.public_ip) publicIp = data.public_ip;
   if(!state.chain) state.chain = {enabled:false, entry_text:'', node_texts:[['']]};
+
+  // 兼容旧格式：node_texts = ['str'] → [['str']]
+  if(state.chain.node_texts && state.chain.node_texts.length > 0){
+    if(typeof state.chain.node_texts[0] === 'string'){
+      state.chain.node_texts = state.chain.node_texts.map(txt => [txt]);
+    }
+  }
+
   document.getElementById('statusPill').textContent = data.container || document.getElementById('statusPill').textContent || '未知';
   const applySwitch = document.getElementById('applySwitch');
   const applySwitchText = document.getElementById('applySwitchText');
@@ -936,6 +944,14 @@ function applyReturnedState(data, options={}){
 async function loadState(showConnectivity=false){
   try{
     const data = await api('/api/state'); state = data.state; if(data.public_ip) publicIp = data.public_ip; if(!state.chain) state.chain={enabled:true,node_texts:[['']]};
+
+    // 兼容旧格式：node_texts = ['str'] → [['str']]
+    if(state.chain.node_texts && state.chain.node_texts.length > 0){
+      if(typeof state.chain.node_texts[0] === 'string'){
+        state.chain.node_texts = state.chain.node_texts.map(txt => [txt]);
+      }
+    }
+
     document.getElementById('entryText').value = state.chain.entry_text || '';
     const applySwitch = document.getElementById('applySwitch');
     const applySwitchText = document.getElementById('applySwitchText');
