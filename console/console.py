@@ -888,29 +888,6 @@ async function removeChainNode(i){
   // 已废弃，由 removeChainLevel 替代
   removeChainLevel(i);
 }
-  const sw = document.getElementById('applySwitch');
-  const label = document.getElementById('applySwitchText');
-  const wasOn = !!(sw && sw.checked);
-  if(sw){ sw.checked = false; sw.disabled = true; renderChainSwitchVisual(false); }
-  if(label) label.textContent = wasOn ? '停止中...' : '保存中...';
-  setConnectionStatus('testing', '检测中', wasOn ? '正在停止链式代理' : '正在保存链式节点');
-  out(wasOn ? '已删除链式节点，正在保存 config.yaml，并热加载 mimo...' : '已删除链式节点，正在保存 config.yaml，并热加载 mimo...');
-  try{
-    const freshState = await collectFreshChainState();
-    freshState.chain.enabled = false;
-    const data = await api('/api/apply', {state:freshState});
-    out(data);
-    setConnectionStatus('unknown', '已停止', '');
-    applyReturnedState(data, {syncSwitch:true});
-  } catch(e){
-    out(e);
-    setConnectionStatus('failed', '执行失败', e && e.error ? e.error : '请求失败');
-    renderChainNodes();
-  } finally {
-    if(sw) sw.disabled = false;
-    if(label) label.textContent = '应用当前配置';
-  }
-}
 function renderChainPreview(){
   const p = document.getElementById('chainPreview');
   if(!state.chain.entry && !(state.chain.nodes||[]).length){ p.textContent='尚未生成链路预览。'; renderChainSummary(); return; }
