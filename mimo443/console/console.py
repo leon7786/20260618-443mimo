@@ -1916,7 +1916,15 @@ def build_managed_objects(state, used_listener_names=None, split_route=True):
             entry["listen"] = "127.0.0.1"
 
         listeners.append(entry)
-    return listeners, proxies, groups
+    # 收集链式节点名 (用于从全局代理组中排除)
+    chain_names = set()
+    for p in proxies:
+        if p.get("name"):
+            chain_names.add(p["name"])
+    for g in groups:
+        if g.get("name"):
+            chain_names.add(g["name"])
+    return listeners, proxies, groups, chain_names
 
 
 def detect_port_conflicts(listeners):
@@ -2131,13 +2139,13 @@ def render_config(existing, state):
     config["proxies"] = without_managed(config.get("proxies"), old["proxies"])
     config["proxy-groups"] = without_managed(config.get("proxy-groups"), old["groups"])
     used_listener_names = names_from_items(config.get("listeners"))
-    listeners, proxies, groups = build_managed_objects(state, used_listener_names, settings["split_route"])
+    listeners, proxies, groups, chain_names = build_managed_objects(state, used_listener_names, settings["split_route"])
     config["listeners"].extend(listeners)
     if proxies:
         config["proxies"].extend(proxies)
     elif not config["proxies"]:
         config.pop("proxies", None)
-    proxy_names = names_from_items(config.get("proxies"))
+    proxy_names = [n for n in names_from_items(config.get("proxies")) if n not in chain_names]
     chain = state.get("chain") or {}
     match_target = chain["exit_proxy"] if (chain.get("enabled") and chain.get("exit_proxy")) else PROXY_GROUP_NAME
     group_name = apply_split_rules(config, proxy_names, match_target, settings["split_route"])
@@ -2150,7 +2158,7 @@ def render_config(existing, state):
     next_state = copy.deepcopy(state)
     next_state["managed"] = {
         "listener_names": [item["name"] for item in listeners if item.get("name")],
-        "proxy_names": [item["name"] for item in proxies if item.get("name")],
+        "proxy_names": [item["name"] for item in proxies if item.get("name") and item["name"] not in chain_names],
         "proxy_group_names": [group_name] + [item["name"] for item in groups if item.get("name")],
     }
     return config, next_state
