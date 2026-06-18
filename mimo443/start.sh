@@ -114,15 +114,16 @@ EOF
 
 # ── console auth ──────────────────────────────────────────
 ensure_console_auth() {
-  local pass="${MIMO_UUID:-}"
-  if [ -z "${pass}" ]; then
-    pass="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())')"
+  local auth_pass="${MIMO_PASS:-${MIMO_UUID:-}}"
+  if [ -z "${auth_pass}" ]; then
+    auth_pass="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())')"
   fi
-  # persist UUID always (reinstall-safe)
-  echo "${pass}" > "${APP_DIR}/uuid"
+  local node_uuid="${MIMO_UUID:-${auth_pass}}"
+  # persist UUID for console.py node defaults
+  echo "${node_uuid}" > "${APP_DIR}/uuid"
   chmod 600 "${APP_DIR}/uuid"
-  echo "[AUTH] user: admin12  pass: ${pass}"
-  export AUTH_FILE CONSOLE_DIR="${APP_DIR}/console" AUTH_PASS="${pass}"
+  echo "[AUTH] user: admin12  pass: ${auth_pass}  uuid: ${node_uuid}"
+  export AUTH_FILE CONSOLE_DIR="${APP_DIR}/console" AUTH_PASS="${auth_pass}"
   python3 - <<'PY'
 import base64, hashlib, os, yaml
 path = os.environ["AUTH_FILE"]
@@ -342,7 +343,7 @@ install() {
   echo "============================================"
   echo "  mimo 安装完成!"
   echo "  控制台: http://$(curl -s --max-time 2 ifconfig.me 2>/dev/null || echo '服务器IP'):2000"
-  echo "  账号: admin12  密码: $(cat "${APP_DIR}/uuid" 2>/dev/null || echo '见 uuid 文件')"
+  echo "  账号: admin12  密码: ${MIMO_PASS:-${MIMO_UUID:-$(cat "${APP_DIR}/uuid" 2>/dev/null || echo '见 uuid 文件')}}"
   echo "============================================"
   echo ""
   echo "  透明代理: systemctl enable --now ${TPROXY_SERVICE_NAME}"

@@ -250,7 +250,7 @@ const LOCAL_EXAMPLES = {
   server: 0.0.0.0
   port: 18080
   username: your_username
-  password: your_password`
+  password: __MIMO_UUID__`
 };
 
 const LOG_OPACITIES = [1, 0.7, 0.45, 0.25, 0.12];
@@ -2520,7 +2520,8 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/":
             refresh_public_ip_cache_async()
-            body = HTML.encode("utf-8")
+            u = install_uuid() or "your_password"
+            body = HTML.replace("__MIMO_UUID__", u).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
