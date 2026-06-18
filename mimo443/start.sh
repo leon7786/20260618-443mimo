@@ -129,7 +129,7 @@ os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path,"w",encoding="utf-8") as f:
     yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
 os.chmod(path, 0o600)
-print(f"  用户名: admin12  密码: {os.environ['AUTH_PASS']}")
+print(f"  user: admin12  pass: {os.environ['AUTH_PASS']}")
 PY
 }
 
