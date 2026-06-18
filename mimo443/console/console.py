@@ -2010,7 +2010,6 @@ RESERVED_IP_RULES = [
     "IP-CIDR,100.64.0.0/10,DIRECT,no-resolve",
     "IP-CIDR,224.0.0.0/4,DIRECT,no-resolve",
     "IP-CIDR,240.0.0.0/4,DIRECT,no-resolve",
-    "IP-CIDR,198.18.0.1/16,REJECT,no-resolve",
 ]
 
 
@@ -2088,9 +2087,7 @@ def apply_performance_to_config(config, settings):
     config["unified-delay"] = settings["unified_delay"]
     config["connection-timeout"] = settings["connection_timeout"]
     config["external-controller"] = MIHOMO_CONTROLLER
-    config["x-split-route"] = settings["split_route"]
     config["keep-alive-interval"] = 30
-    config["keep-alive-idle"] = 600
     dns = config.setdefault("dns", {})
     dns["enable"] = True
     dns["ipv6"] = settings["ipv6"]
@@ -2341,7 +2338,7 @@ def apply_performance_settings(settings):
             # PATCH only changed sections: keeps DNS cache + connections alive
             patch = {}
             for key in ["log-level", "ipv6", "tcp-concurrent", "unified-delay", "connection-timeout",
-                        "keep-alive-interval", "keep-alive-idle"]:
+                        "keep-alive-interval"]:
                 if key in config:
                     patch[key] = config[key]
             patch["dns"] = config.get("dns", {})

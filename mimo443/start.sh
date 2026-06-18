@@ -85,7 +85,6 @@ tcp-concurrent: true
 unified-delay: true
 connection-timeout: 5
 keep-alive-interval: 30
-keep-alive-idle: 600
 external-controller: 127.0.0.1:19093
 geodata-mode: false
 dns:
@@ -241,8 +240,6 @@ run_tproxy_start() {
     PUB_RULE="ip daddr ${PUB} return"
   fi
   nft -f - <<EOF
-add table ip mimo_tproxy
-delete table ip mimo_tproxy
 table ip mimo_tproxy {
   set bypass {
     type inet_service
@@ -255,29 +252,28 @@ table ip mimo_tproxy {
     elements = { 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16,
                  169.254.0.0/16, 100.64.0.0/10, 224.0.0.0/4, 240.0.0.0/4 }
   }
-  chain prerouting {
-    type nat hook prerouting priority -100; policy accept;
-    meta mark ${FWMARK} return
+  chain tproxy_logic {
+    ct state invalid drop
+    ct state { established, related } accept
     meta l4proto { tcp, udp } th dport 53 redirect to :${DNS_PORT}
     ip daddr @reserved return
     ${PUB_RULE}
     tcp dport @bypass return
     udp dport @bypass return
     meta l4proto tcp redirect to :${REDIR_PORT}
+  }
+  chain prerouting {
+    type nat hook prerouting priority -100; policy accept;
+    iifname "lo" accept
+    meta mark ${FWMARK} return
+    jump tproxy_logic
   }
   chain output {
     type nat hook output priority 100; policy accept;
     meta mark ${FWMARK} return
-    meta l4proto { tcp, udp } th dport 53 redirect to :${DNS_PORT}
-    ip daddr @reserved return
-    ${PUB_RULE}
-    tcp dport @bypass return
-    udp dport @bypass return
-    meta l4proto tcp redirect to :${REDIR_PORT}
+    jump tproxy_logic
   }
 }
-add table ip mimo_quic
-delete table ip mimo_quic
 table ip mimo_quic {
   chain input {
     type filter hook input priority 0; policy accept;
