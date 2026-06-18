@@ -114,15 +114,19 @@ EOF
 
 # ── console auth ──────────────────────────────────────────
 ensure_console_auth() {
-  [ -f "${AUTH_FILE}" ] && return
   local pass="${MIMO_UUID:-}"
   if [ -z "${pass}" ]; then
     pass="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())')"
   fi
-  echo "[AUTH] user: admin12  pass: ${pass}"
-  # persist UUID for console to read as default node password
+  # persist UUID always (reinstall-safe)
   echo "${pass}" > "${APP_DIR}/uuid"
   chmod 600 "${APP_DIR}/uuid"
+  # generate auth only if not present
+  if [ -f "${AUTH_FILE}" ]; then
+    echo "[AUTH] 已有认证文件，跳过。密码见 ${APP_DIR}/uuid"
+    return
+  fi
+  echo "[AUTH] user: admin12  pass: ${pass}"
   export AUTH_FILE CONSOLE_DIR="${APP_DIR}/console" AUTH_PASS="${pass}"
   python3 - <<'PY'
 import base64, hashlib, os, yaml
