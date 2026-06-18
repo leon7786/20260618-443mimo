@@ -1,0 +1,13 @@
+# secrets
+config.yaml
+console/console-auth.yaml
+console/tokens.yaml
+console/state.yaml
+ruleset/server.crt
+ruleset/server.key
+
+# runtime
+cache.db
+*.pyc
+__pycache__/
+console/.initialized

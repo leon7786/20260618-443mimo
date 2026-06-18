@@ -1,0 +1,33 @@
+# Mihomo config — 部署时自动覆盖为默认配置
+# 此文件仅作参考示例，不含任何真实凭据
+allow-lan: false
+mode: rule
+log-level: info
+ipv6: false
+tcp-concurrent: true
+unified-delay: true
+connection-timeout: 5
+keep-alive-interval: 30
+keep-alive-idle: 600
+external-controller: 127.0.0.1:19093
+geodata-mode: false
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  ipv6: false
+  enhanced-mode: redir-host
+  respect-rules: true
+  default-nameserver: [223.5.5.5, 180.76.76.76, 119.29.29.29]
+  proxy-server-nameserver: [223.5.5.5, 180.76.76.76, 119.29.29.29]
+  nameserver: [https://cloudflare-dns.com/dns-query, https://dns.google/dns-query]
+listeners: []
+rules:
+- IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+- IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+- IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+- IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+- MATCH,DIRECT
+proxy-groups:
+- name: 节点选择
+  type: select
+  proxies: [DIRECT]
