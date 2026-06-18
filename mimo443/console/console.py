@@ -1184,9 +1184,9 @@ async function applyConfig(toggle){
       sw.checked = true;
       renderChainSwitchVisual(true);
     } else if(targetOn && conn && !conn.ok) {
-      appendLog('? 首次连通性测试失败，将进行 3 次重试（每次超时 1 秒）...');
+      appendLog('⚠️ 首次连通性测试失败，将进行 2 次重试（每次超时 1 秒）...');
       let retrySuccess = false;
-      for(let i = 1; i <= 3; i++){
+      for(let i = 1; i <= 2; i++){
         await new Promise(r => setTimeout(r, 500));
         const retryData = await api('/api/connectivity-test-retry', {state: freshState});
         const retryConn = retryData.connectivity;
@@ -1199,7 +1199,7 @@ async function applyConfig(toggle){
       }
 
       if(!retrySuccess){
-        appendLog('❌ 连续 3 次测试失败，自动回退配置');
+        appendLog('❌ 连续测试失败，自动回退配置');
         freshState.chain.enabled = false;
         const rollbackData = await api('/api/apply', {state: freshState});
         out(rollbackData);
@@ -2266,8 +2266,8 @@ def test_google_connectivity(state=None, timeout=5, connect_timeout=3, max_attem
 
 
 def test_google_connectivity_quick(state=None):
-    """快速测试：0.7 秒超时，重试 2 次"""
-    return test_google_connectivity(state, timeout=0.7, connect_timeout=0.7, max_attempts=2, retry_delay=0.1)
+    """快速测试：500ms 超时，重试 2 次"""
+    return test_google_connectivity(state, timeout=0.5, connect_timeout=0.5, max_attempts=2, retry_delay=0.1)
 
 
 def test_google_connectivity_retry(state=None):
