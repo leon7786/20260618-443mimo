@@ -32,8 +32,16 @@ MIMO_SERVICE_NAME = os.environ.get("MIMO_SERVICE_NAME", "mimo.service")
 MIMO_BINARY = Path(os.environ.get("MIMO_BINARY", str(APP_DIR / "mimo-linux-amd64")))
 CERT_PATH = "./ruleset/server.crt"
 KEY_PATH = "./ruleset/server.key"
-HYSTERIA2_OBFS_PASSWORD = "OWQwMjliNDEwYjA2OWQwMw=="
 MIHOMO_CONTROLLER = "127.0.0.1:19093"
+
+def install_uuid():
+    try:
+        p = APP_DIR / "uuid"
+        if p.exists():
+            return p.read_text().strip()
+    except Exception:
+        pass
+    return None
 LOCK = threading.Lock()
 IP_CACHE = {"ip": "", "updated_at": 0.0, "refreshing": False, "error": ""}
 IP_CACHE_LOCK = threading.Lock()
@@ -200,14 +208,14 @@ HTML = r"""
   </section>
 
   <section class="local-block">
-    <div class="row" style="justify-content:space-between; margin-bottom:12px"><h2 style="margin:0">搭建本地服务端</h2><div class="row"><div class="dns-group"><label class="dns-option"><input type="radio" name="globalDns" value="1.1.1.1" onchange="setGlobalDns(this.value)"><span>1.1.1.1</span></label><label class="dns-option"><input type="radio" name="globalDns" value="8.8.4.4" onchange="setGlobalDns(this.value)"><span>8.8.4.4</span></label><label class="dns-option"><input type="radio" name="globalDns" value="local" checked onchange="setGlobalDns(this.value)"><span>本地</span></label></div><div class="protocol-group"><button class="action-add" onclick="addLocalService('tuic')">TUIC</button><button class="action-add" onclick="addLocalService('hysteria2')">Hysteria2</button><button class="action-add" onclick="addLocalService('anytls')">AnyTLS</button><button class="action-add" onclick="addLocalService('ss')">SS</button><button class="action-add" onclick="addLocalService('http')">HTTP</button><button class="action-add" onclick="addLocalService('socks')">SOCKS5</button></div></div></div>
+    <div class="row" style="justify-content:space-between; margin-bottom:12px"><h2 style="margin:0">搭建本地服务端</h2><div class="row"><div class="dns-group"><label class="dns-option"><input type="radio" name="globalDns" value="1.1.1.1" onchange="setGlobalDns(this.value)"><span>1.1.1.1</span></label><label class="dns-option"><input type="radio" name="globalDns" value="8.8.4.4" onchange="setGlobalDns(this.value)"><span>8.8.4.4</span></label><label class="dns-option"><input type="radio" name="globalDns" value="local" checked onchange="setGlobalDns(this.value)"><span>本地</span></label></div><div class="protocol-group"><button class="action-add" onclick="addLocalService('http')">HTTP</button></div></div></div>
     <textarea id="localPaste" placeholder="也可以手动粘贴单个服务端 YAML，再点手动增加"></textarea>
     <div class="row" style="margin-top:10px"><button class="action-add" onclick="parseLocal()">手动增加服务端</button><span class="muted">点击标题右侧协议按钮会直接新增一个默认关闭的服务端卡片。</span></div>
     <div id="localCards" class="cards"></div>
   </section>
 
   <section class="chain-block">
-    <div class="row" style="justify-content:space-between; margin-bottom:12px"><div class="row"><h2 style="margin:0">搭建链式代理</h2><label class="switch"><input id="applySwitch" type="checkbox" onchange="applyConfig(this)"><span class="slider"></span></label><span id="applySwitchText" style="display:none"></span><span id="connectionStatus" class="connection unknown" title="尚未测试"><span class="dot"></span><span id="connectionText">未测试</span></span><span id="connectionDetail" class="connection-detail"></span></div><div class="row"><button id="connectivityBtn" class="action-test" onclick="testConnectivityOnly(this)">连通性测试</button><button class="secondary" onclick="fillEntryExample('ss')">SS入口</button><button class="secondary" onclick="fillEntryExample('http')">HTTP入口</button><button class="secondary" onclick="fillEntryExample('socks')">SOCKS5入口</button><button id="validateBtn" class="action-test" onclick="validateOnly()">只校验</button></div></div>
+    <div class="row" style="justify-content:space-between; margin-bottom:12px"><div class="row"><h2 style="margin:0">搭建链式代理</h2><label class="switch"><input id="applySwitch" type="checkbox" onchange="applyConfig(this)"><span class="slider"></span></label><span id="applySwitchText" style="display:none"></span><span id="connectionStatus" class="connection unknown" title="尚未测试"><span class="dot"></span><span id="connectionText">未测试</span></span><span id="connectionDetail" class="connection-detail"></span></div><div class="row"><button id="connectivityBtn" class="action-test" onclick="testConnectivityOnly(this)">连通性测试</button><button id="validateBtn" class="action-test" onclick="validateOnly()">只校验</button></div></div>
     <div id="chainSummary" class="summary-grid"></div>
     <div class="perf-panel">
       <div class="perf-head"><span class="perf-title">功能选项</span><span class="muted">切换后会保存 config.yaml 并重启 Mihomo</span></div>
@@ -226,7 +234,7 @@ HTML = r"""
     </div>
     <label>第1级入口节点</label>
     <textarea id="entryText" placeholder="选择 SS / HTTP / SOCKS5 自动填入入口节点，也可以手动粘贴"></textarea>
-    <div class="chain-tools"><div class="tool-left"><span class="muted">快速生成下级节点</span><button class="action-copy" onclick="fillAnyTlsChainExample()">填入第2级 AnyTLS 范例</button></div><div class="tool-right"><button class="action-add" onclick="addChainNode()">+ 增加下一级</button></div></div>
+    <div class="chain-tools"><div class="tool-right"><button class="action-add" onclick="addChainNode()">+ 增加下一级</button></div></div>
     <div id="chainNodes"></div>
     <div class="preview-actions"><button id="chainPreviewBtn" class="action-copy" onclick="toggleChainPreview()">链路预览</button></div>
     <div id="chainPreview" class="status muted chain-preview collapsed">尚未生成链路预览。</div>
@@ -234,99 +242,16 @@ HTML = r"""
 
 </main>
 <script>
-let state = {version:1, local_services:[], chain:{enabled:true, entry_text:'', node_texts:[['']], entry:null, nodes:[], localhost_only:false}, managed:{listener_names:[], proxy_names:[], proxy_group_names:[]}};
+let state = {version:1, local_services:[], chain:{enabled:false, entry_text:'', node_texts:[['']], entry:null, nodes:[], localhost_only:false}, managed:{listener_names:[], proxy_names:[], proxy_group_names:[]}};
 let publicIp = '';
 
 const LOCAL_EXAMPLES = {
-  tuic: `- type: tuic
-  server: 0.0.0.0
-  port: 2087
-  uuid: 667547af-159f-4059-9443-ed4eb326a438
-  password: ZOwpXCwS7v5_0aJqn3XP9EKi
-  sni: www.sciencedirect.com
-  alpn:
-    - h3
-  skip-cert-verify: true
-  disable-sni: false
-  congestion-controller: bbr
-  udp: true`,
-  hysteria2: `- type: hysteria2
-  server: 0.0.0.0
-  port: 2055
-  password: 667547af-159f-4059-9443-ed4eb326a438
-  up: "200 Mbps"
-  down: "200 Mbps"
-  obfs: salamander
-  obfs-password: OWQwMjliNDEwYjA2OWQwMw==
-  alpn:
-    - h3
-  skip-cert-verify: true
-  udp: true`,
-  anytls: `- type: anytls
-  server: 0.0.0.0
-  port: 2096
-  password: 667547af-159f-4059-9443-ed4eb326a438
-  sni: ''
-  alpn:
-    - h2
-    - http/1.1
-  skip-cert-verify: true
-  client-fingerprint: chrome
-  udp: true`,
-  ss: `- type: ss
-  server: 0.0.0.0
-  port: 2093
-  cipher: 2022-blake3-aes-128-gcm
-  password: ZnVHrxWfQFmUQ+1OsyakOA==
-  udp: true`,
   http: `- type: http
   server: 0.0.0.0
   port: 18080
   username: your_username
-  password: your_password`,
-  socks: `- type: socks
-  server: 0.0.0.0
-  port: 11080
-  username: your_username
-  password: your_password
-  udp: true`
+  password: your_password`
 };
-
-const ENTRY_EXAMPLES = {
-  ss: `- name: chain-entry-ss-14001
-  type: ss
-  server: 0.0.0.0
-  port: 14001
-  cipher: 2022-blake3-aes-128-gcm
-  password: ZnVHrxWfQFmUQ+1OsyakOA==
-  udp: true`,
-  http: `- name: chain-entry-http-2001
-  type: http
-  server: 0.0.0.0
-  port: 2001
-  username: admin123
-  password: admin1234`,
-  socks: `- name: chain-entry-socks5-11081
-  type: socks
-  server: 0.0.0.0
-  port: 11081
-  username: your_username
-  password: your_password
-  udp: true`
-};
-
-const ANYTLS_CHAIN_EXAMPLE = `- name: chain-anytls-2096
-  type: anytls
-  server: 132.226.23.12
-  port: 2096
-  password: 667547af-159f-4059-9443-ed4eb326a438
-  sni: ''
-  alpn:
-    - h2
-    - http/1.1
-  skip-cert-verify: true
-  client-fingerprint: chrome
-  udp: true`;
 
 const LOG_OPACITIES = [1, 0.7, 0.45, 0.25, 0.12];
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
@@ -682,8 +607,6 @@ async function saveUiState(successMsg='状态已保存。'){
   return data;
 }
 function fillLocalExample(type){ document.getElementById('localPaste').value = LOCAL_EXAMPLES[type] || ''; }
-function fillEntryExample(type){ const text = ENTRY_EXAMPLES[type] || ''; document.getElementById('entryText').value = text; state.chain.entry_text = text; }
-function fillAnyTlsChainExample(){ state.chain.node_texts = [[ANYTLS_CHAIN_EXAMPLE]]; renderChainNodes(); }
 async function toggleChainLocalhostOnly(){
   const localhostOnly = !!document.getElementById('chainLocalhostOnly')?.checked;
   state.chain.localhost_only = localhostOnly;
@@ -1487,7 +1410,7 @@ def proxy_snippet_to_listener(node, used_names=None, used_ports=None):
             "down": node.get("down", "200 Mbps"),
             "ignore-client-bandwidth": bool(node.get("ignore-client-bandwidth", False)),
             "obfs": node.get("obfs", "salamander"),
-            "obfs-password": node.get("obfs-password") or node.get("obfs_password") or HYSTERIA2_OBFS_PASSWORD,
+            "obfs-password": node.get("obfs-password") or node.get("obfs_password") or (install_uuid() or secrets.token_hex(16)),
             "masquerade": node.get("masquerade", ""),
             "alpn": node.get("alpn") or ["h3"],
             "certificate": CERT_PATH,
@@ -1641,7 +1564,7 @@ def listener_to_client_node(listener, server_ip, dns_upstream="local"):
         node.update({
             "password": str(password),
             "obfs": listener.get("obfs", "salamander"),
-            "obfs-password": listener.get("obfs-password") or HYSTERIA2_OBFS_PASSWORD,
+            "obfs-password": listener.get("obfs-password") or (install_uuid() or secrets.token_hex(16)),
             "sni": listener.get("sni", ""),
             "alpn": listener.get("alpn") or ["h3"],
             "skip-cert-verify": True,

@@ -115,8 +115,14 @@ EOF
 # ── console auth ──────────────────────────────────────────
 ensure_console_auth() {
   [ -f "${AUTH_FILE}" ] && return
-  local pass="Dd--2131801"
-  echo "[AUTH] 生成默认账号 admin12 / ${pass}"
+  local pass="${MIMO_UUID:-}"
+  if [ -z "${pass}" ]; then
+    pass="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())')"
+  fi
+  echo "[AUTH] user: admin12  pass: ${pass}"
+  # persist UUID for console to read as default node password
+  echo "${pass}" > "${APP_DIR}/uuid"
+  chmod 600 "${APP_DIR}/uuid"
   export AUTH_FILE CONSOLE_DIR="${APP_DIR}/console" AUTH_PASS="${pass}"
   python3 - <<'PY'
 import base64, hashlib, os, yaml
@@ -333,17 +339,14 @@ install() {
     sleep 1
   done
   systemctl enable --now "${CONSOLE_SERVICE_NAME}"
-  echo "[TPROXY] 启用透明代理..."
-  systemctl enable --now "${TPROXY_SERVICE_NAME}"
   echo ""
   echo "============================================"
   echo "  mimo 安装完成!"
   echo "  控制台: http://$(curl -s --max-time 2 ifconfig.me 2>/dev/null || echo '服务器IP'):2000"
-  echo "  账号: admin12  密码: Dd--2131801"
+  echo "  账号: admin12  密码: $(cat "${APP_DIR}/uuid" 2>/dev/null || echo '见 uuid 文件')"
   echo "============================================"
   echo ""
-  echo "  透明代理已默认开启 (劫持本机 TCP+DNS)。配置链式代理后即走代理。"
-  echo "  关闭透明代理: systemctl disable --now ${TPROXY_SERVICE_NAME}"
+  echo "  透明代理: systemctl enable --now ${TPROXY_SERVICE_NAME}"
   echo "  管理: bash ${APP_DIR}/start.sh"
   echo ""
 }

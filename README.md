@@ -40,21 +40,21 @@ sudo bash /root/projects/20260515-mimo443/mimo443/start.sh
 # 选 1) 安装并启动
 ```
 
-依赖自动安装。部署后 3 个 systemd 服务（含透明代理，默认全部 enable 开机自启）：
+依赖自动安装。部署后 2 个 systemd 服务默认 enable，透明代理需手动开启：
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
 | `mimo.service` | 7892, 1053, 19093 | 内核 |
 | `mimo-console.service` | 2000 | Web 控制台 |
-| `mimo-tproxy.service` | — | 透明代理 nftables（安装即开启） |
+| `mimo-tproxy.service` | — | 透明代理 nftables（手动开启） |
 
-透明代理安装后即开启，用 nftables 劫持本机 TCP+DNS（`start.sh tproxy-start`）。配置链式代理后即走代理；未配置时默认全 DIRECT 直连。关闭：`systemctl disable --now mimo-tproxy.service`。
+透明代理默认关闭。开启：`systemctl enable --now mimo-tproxy.service`。关闭：`systemctl disable --now mimo-tproxy.service`。
 
 **绕过端口**（不走代理，避免锁死）：SSH `22` 与 `60000-60050`、控制台 `2000`、控制器 `19093`、redir `7892`、DNS `1053`，以及 `config.yaml` 里所有入站 listener 端口（自动从配置提取）。本机公网 IP 也绕过。规则查看：`nft list table ip mimo_tproxy`。
 
 ## 控制台
 
-浏览器打开 `http://VPS_IP:2000/`，用户名 `admin12`，密码 `Dd--2131801`。
+浏览器打开 `http://VPS_IP:2000/`，用户名 `admin12`，密码为安装时生成的 UUID（存储在 `/root/projects/20260515-mimo443/mimo443/uuid`）。
 
 ### 功能面板
 
