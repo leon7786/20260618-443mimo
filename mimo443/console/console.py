@@ -2326,14 +2326,17 @@ def apply_performance_settings(settings):
         # Reload: 全量 reload 仅在 tproxy 或 分流 切换时; 其余轻量 PATCH
         tproxy_svc = "mimo-tproxy.service"
         if tproxy_changed or split_changed:
-            reload = recreate_mihomo()
-            if normalized.get("tproxy"):
-                # 透明代理由 mimo-tproxy.service 统一实现 (start.sh tproxy-start, nft)
-                # restart 让 ExecStart 按当前 config 的 listener 端口重建 bypass
+            if tproxy_changed and not normalized.get("tproxy"):
+                # 关 tproxy: 先删 nft 规则 (否则 reload 后 redir-port 消失, 7892 无人监听 → 断网)
+                subprocess.run(["systemctl", "disable", "--now", tproxy_svc], capture_output=True, timeout=15)
+                reload = recreate_mihomo()
+            elif tproxy_changed and normalized.get("tproxy"):
+                reload = recreate_mihomo()
+                # 开 tproxy: 先 reload 让 redir-port 就绪, 再加 nft 规则
                 subprocess.run(["systemctl", "enable", tproxy_svc], capture_output=True, timeout=15)
                 subprocess.run(["systemctl", "restart", tproxy_svc], capture_output=True, timeout=15)
-            elif tproxy_changed:
-                subprocess.run(["systemctl", "disable", "--now", tproxy_svc], capture_output=True, timeout=15)
+            else:
+                reload = recreate_mihomo()
         else:
             # PATCH only changed sections: keeps DNS cache + connections alive
             patch = {}
