@@ -208,7 +208,7 @@ HTML = r"""
   </section>
 
   <section class="local-block">
-    <div class="row" style="justify-content:space-between; margin-bottom:12px"><h2 style="margin:0">搭建本地服务端</h2><div class="row"><div class="dns-group"><label class="dns-option"><input type="radio" name="globalDns" value="1.1.1.1" onchange="setGlobalDns(this.value)"><span>1.1.1.1</span></label><label class="dns-option"><input type="radio" name="globalDns" value="8.8.4.4" onchange="setGlobalDns(this.value)"><span>8.8.4.4</span></label><label class="dns-option"><input type="radio" name="globalDns" value="local" checked onchange="setGlobalDns(this.value)"><span>本地</span></label></div><div class="protocol-group"><button class="action-add" onclick="addLocalService('http')">HTTP</button></div></div></div>
+    <div class="row" style="justify-content:space-between; margin-bottom:12px"><h2 style="margin:0">搭建本地服务端</h2><div class="row"><div class="dns-group"><label class="dns-option"><input type="radio" name="globalDns" value="1.1.1.1" onchange="setGlobalDns(this.value)"><span>1.1.1.1</span></label><label class="dns-option"><input type="radio" name="globalDns" value="8.8.4.4" onchange="setGlobalDns(this.value)"><span>8.8.4.4</span></label><label class="dns-option"><input type="radio" name="globalDns" value="local" checked onchange="setGlobalDns(this.value)"><span>本地</span></label></div><div class="protocol-group"><button class="action-add" onclick="addLocalService('tuic')">TUIC</button><button class="action-add" onclick="addLocalService('hysteria2')">Hysteria2</button><button class="action-add" onclick="addLocalService('anytls')">AnyTLS</button><button class="action-add" onclick="addLocalService('ss')">SS</button><button class="action-add" onclick="addLocalService('http')">HTTP</button><button class="action-add" onclick="addLocalService('socks')">SOCKS5</button></div></div></div>
     <textarea id="localPaste" placeholder="也可以手动粘贴单个服务端 YAML，再点手动增加"></textarea>
     <div class="row" style="margin-top:10px"><button class="action-add" onclick="parseLocal()">手动增加服务端</button><span class="muted">点击标题右侧协议按钮会直接新增一个默认关闭的服务端卡片。</span></div>
     <div id="localCards" class="cards"></div>
@@ -246,11 +246,58 @@ let state = {version:1, local_services:[], chain:{enabled:false, entry_text:'', 
 let publicIp = '';
 
 const LOCAL_EXAMPLES = {
+  tuic: `- type: tuic
+  server: 0.0.0.0
+  port: 2087
+  uuid: __MIMO_UUID__
+  password: __MIMO_UUID__
+  sni: www.sciencedirect.com
+  alpn:
+    - h3
+  skip-cert-verify: true
+  disable-sni: false
+  congestion-controller: bbr
+  udp: true`,
+  hysteria2: `- type: hysteria2
+  server: 0.0.0.0
+  port: 2055
+  password: __MIMO_UUID__
+  up: "200 Mbps"
+  down: "200 Mbps"
+  obfs: salamander
+  obfs-password: __MIMO_UUID__
+  alpn:
+    - h3
+  skip-cert-verify: true
+  udp: true`,
+  anytls: `- type: anytls
+  server: 0.0.0.0
+  port: 2096
+  password: __MIMO_UUID__
+  sni: ''
+  alpn:
+    - h2
+    - http/1.1
+  skip-cert-verify: true
+  client-fingerprint: chrome
+  udp: true`,
+  ss: `- type: ss
+  server: 0.0.0.0
+  port: 2093
+  cipher: 2022-blake3-aes-128-gcm
+  password: __MIMO_UUID__
+  udp: true`,
   http: `- type: http
   server: 0.0.0.0
   port: 18080
   username: your_username
-  password: __MIMO_UUID__`
+  password: __MIMO_UUID__`,
+  socks: `- type: socks
+  server: 0.0.0.0
+  port: 11080
+  username: your_username
+  password: __MIMO_UUID__
+  udp: true`
 };
 
 const LOG_OPACITIES = [1, 0.7, 0.45, 0.25, 0.12];
