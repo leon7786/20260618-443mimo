@@ -1117,8 +1117,8 @@ async function testConnectivityOnly(btn){
   btn.classList.remove('success', 'failed');
   setConnectionStatus('testing', '检测中', '700ms 超时，重试 1 次');
   try{
-    // 收集当前 UI 状态（包括未保存的链式代理配置）
-    const freshState = await collectFreshChainState();
+    // 直接从页面 DOM 读取最新配置
+    const freshState = await collectFreshState();
 
     // 检测入口端口是否已应用
     const entry = freshState.chain.entry;
@@ -1154,7 +1154,7 @@ async function validateOnly(){
   const btn = document.getElementById('validateBtn');
   const old = btn.textContent;
   btn.disabled = true; btn.textContent = '校验中...'; out('正在清理页面缓存并仅使用当前链式代理参数校验...');
-  try{ const freshState = await collectFreshChainState(); const data = await api('/api/validate', {state:freshState}); out(data); }
+  try{ const freshState = await collectFreshState(); const data = await api('/api/validate', {state:freshState}); out(data); }
   catch(e){ out(e); }
   finally{ btn.disabled = false; btn.textContent = old; }
 }
@@ -1170,7 +1170,8 @@ async function applyConfig(toggle){
   setConnectionStatus('testing', '检测中', targetOn ? '正在测试 google.com 连通性' : '正在停止链式代理');
   out(targetOn ? '正在保存 config.yaml，热加载 mimo，并测试 google.com 连通性...' : '正在保存 config.yaml，关闭当前链式代理，并热加载 mimo...');
   try{
-    const freshState = await collectFreshChainState();
+    // 直接从当前页面 DOM 读取最新配置 + 浏览器内存 state, 不请求 /api/state
+    const freshState = await collectFreshState();
     freshState.chain.enabled = targetOn;
     const data = await api('/api/apply', {state:freshState});
     out(data);
@@ -1183,8 +1184,7 @@ async function applyConfig(toggle){
       sw.checked = true;
       renderChainSwitchVisual(true);
     } else if(targetOn && conn && !conn.ok) {
-      // 第一次测试失败，重试 3 次（每次超时 1 秒）
-      appendLog('⚠️ 首次连通性测试失败，将进行 3 次重试（每次超时 1 秒）...');
+      appendLog('? 首次连通性测试失败，将进行 3 次重试（每次超时 1 秒）...');
       let retrySuccess = false;
       for(let i = 1; i <= 3; i++){
         await new Promise(r => setTimeout(r, 500));
@@ -1200,10 +1200,8 @@ async function applyConfig(toggle){
 
       if(!retrySuccess){
         appendLog('❌ 连续 3 次测试失败，自动回退配置');
-        // 回退：禁用链式代理
-        const rollbackState = await collectFreshChainState();
-        rollbackState.chain.enabled = false;
-        const rollbackData = await api('/api/apply', {state: rollbackState});
+        freshState.chain.enabled = false;
+        const rollbackData = await api('/api/apply', {state: freshState});
         out(rollbackData);
         sw.checked = false;
         renderChainSwitchVisual(false);
