@@ -1081,7 +1081,7 @@ async function collectFreshState(){
   state.chain.localhost_only = chainUi.localhost_only;
 
   // 扁平化传给 API
-  const flatNodeYamls = nodeLevels.flatMap(level => level.filter(n => n.trim()));
+  const flatNodeYamls = (chainUi.node_texts || []).flatMap(level => level.filter(n => n.trim()));
 
   if(state.chain.entry_text.trim() && flatNodeYamls.length > 0){
     const data = await api('/api/parse/chain', {entry_yaml:state.chain.entry_text, node_yamls:flatNodeYamls});
@@ -2144,6 +2144,8 @@ def render_config(existing, state):
     chain = state.get("chain") or {}
     match_target = chain["exit_proxy"] if (chain.get("enabled") and chain.get("exit_proxy")) else PROXY_GROUP_NAME
     group_name = apply_split_rules(config, proxy_names, match_target, settings["split_route"])
+    # 清理残留链式组 (防止 from_managed 漏删导致 validator 报 proxy not found)
+    config["proxy-groups"] = [g for g in config.get("proxy-groups") or [] if not (isinstance(g, dict) and str(g.get("name", "")).startswith("chain-level"))]
     groups = [g for g in groups if g.get("name") != group_name]
     if groups:
         config["proxy-groups"].extend(groups)
