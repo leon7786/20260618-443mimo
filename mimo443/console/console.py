@@ -1178,7 +1178,7 @@ async function testConnectivityOnly(btn){
       }
     }
 
-    const data = await api('/api/connectivity-test', {state: freshState});
+    const data = await api('/api/connectivity-test', {});
     const conn = data.connectivity;
     appendLog(connectivityLogLine(conn));
     if(conn && conn.ok){
@@ -1187,6 +1187,8 @@ async function testConnectivityOnly(btn){
     } else {
       btn.classList.add('failed');
       setConnectionStatus('failed', connectivityBadgeText(conn), connectivityDetail(conn));
+    state.connectivity = conn;
+    await saveUiState();
     }
   } catch(e){
     appendLog(e);
@@ -1235,7 +1237,7 @@ async function applyConfig(toggle){
       let retrySuccess = false;
       for(let i = 1; i <= 2; i++){
         await new Promise(r => setTimeout(r, 500));
-        const retryData = await api('/api/connectivity-test-retry', {state: freshState});
+        const retryData = await api('/api/connectivity-test-retry', {});
         const retryConn = retryData.connectivity;
         appendLog(`重试 ${i}/3: ${retryConn.ok ? '成功 ✓' : '失败 ✗'} (${retryConn.elapsed_ms}ms)`);
         if(retryConn.ok){
@@ -1248,7 +1250,7 @@ async function applyConfig(toggle){
       if(!retrySuccess){
         appendLog('❌ 连续测试失败，自动回退配置');
         freshState.chain.enabled = false;
-        const rollbackData = await api('/api/apply', {state: freshState});
+        const rollbackData = await api('/api/apply', {});
         out(rollbackData);
         sw.checked = false;
         renderChainSwitchVisual(false);
