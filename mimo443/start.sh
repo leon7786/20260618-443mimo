@@ -121,11 +121,6 @@ ensure_console_auth() {
   # persist UUID always (reinstall-safe)
   echo "${pass}" > "${APP_DIR}/uuid"
   chmod 600 "${APP_DIR}/uuid"
-  # generate auth only if not present
-  if [ -f "${AUTH_FILE}" ]; then
-    echo "[AUTH] 已有认证文件，跳过。密码见 ${APP_DIR}/uuid"
-    return
-  fi
   echo "[AUTH] user: admin12  pass: ${pass}"
   export AUTH_FILE CONSOLE_DIR="${APP_DIR}/console" AUTH_PASS="${pass}"
   python3 - <<'PY'
