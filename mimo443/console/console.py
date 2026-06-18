@@ -1984,12 +1984,14 @@ def normalize_performance_settings(settings=None):
 def detect_performance_settings(config=None):
     config = config or load_yaml(CONFIG_PATH, {}) or {}
     dns = config.get("dns") or {}
+    state = load_yaml(STATE_PATH, default_state())
+    perf = state.get("performance") or {}
     return normalize_performance_settings({
         "keep_alive": True,
-        "tcp_concurrent": config.get("tcp-concurrent") is True,
-        "unified_delay": config.get("unified-delay") is True,
+        "tcp_concurrent": config.get("tcp-concurrent") is not False,
+        "unified_delay": config.get("unified-delay") is not False,
         "fake_ip": False,
-        "split_route": config.get("x-split-route") is not False,
+        "split_route": perf.get("split_route", True),
         "ipv6": config.get("ipv6") is True or dns.get("ipv6") is True,
         "connection_timeout": config.get("connection-timeout", 5),
         "log_level": config.get("log-level", "warning"),
@@ -2300,9 +2302,12 @@ def apply_performance_settings(settings):
     with LOCK:
         config = load_yaml(CONFIG_PATH, {})
         prev_tproxy = bool(config.get("redir-port"))
-        prev_split = config.get("x-split-route") is not False
-        normalized = apply_performance_to_config(config, settings)
         state = load_yaml(STATE_PATH, default_state())
+        prev_perf = state.get("performance") or {}
+        prev_split = prev_perf.get("split_route", True)
+        # merge incoming settings onto existing state so partial updates don't reset other fields
+        settings = {**prev_perf, **settings}
+        normalized = apply_performance_to_config(config, settings)
         tproxy_changed = bool(normalized.get("tproxy")) != prev_tproxy
         split_changed = bool(normalized.get("split_route")) != prev_split
 
