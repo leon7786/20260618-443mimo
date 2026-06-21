@@ -33,14 +33,21 @@
         └── private.mrs             私有域名规则
 ```
 
-## 部署
+## 一键部署
+
+在目标 VPS（全新 Debian/Ubuntu）上执行一行命令：
 
 ```bash
-sudo bash /root/projects/20260515-mimo443/mimo443/start.sh
-# 选 1) 安装并启动
+bash <(curl -fsSL https://raw.githubusercontent.com/leon7786/20260618-443mimo/master/install.sh)
 ```
 
-依赖自动安装。部署后 2 个 systemd 服务默认 enable，透明代理需手动开启：
+脚本交互式提示输入控制台密码和节点 UUID。非交互模式：
+
+```bash
+MIMO_UUID=your-uuid MIMO_PASS=your-password bash <(curl -fsSL https://raw.githubusercontent.com/leon7786/20260618-443mimo/master/install.sh)
+```
+
+部署完成后即可用浏览器打开控制台。依赖自动安装。2 个 systemd 服务默认 enable，透明代理需手动开启：
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
