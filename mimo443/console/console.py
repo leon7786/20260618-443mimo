@@ -199,6 +199,7 @@ HTML = r"""
   <div class="header-actions">
     <div class="header-status"><span class="header-status-label">容器状态</span><span id="statusPill" class="pill">加载中</span></div>
     <button class="secondary" onclick="loadState()">刷新状态</button>
+    <button class="secondary" onclick="restartService()" title="重启 Mihomo 内核服务">重启服务</button>
   </div>
 </header>
 <main>
@@ -215,7 +216,7 @@ HTML = r"""
   </section>
 
   <section class="chain-block">
-    <div class="row" style="justify-content:space-between; margin-bottom:12px"><div class="row"><h2 style="margin:0">搭建链式代理</h2><label class="switch"><input id="applySwitch" type="checkbox" onchange="applyConfig(this)"><span class="slider"></span></label><span id="applySwitchText" style="display:none"></span><span id="connectionStatus" class="connection unknown" title="尚未测试"><span class="dot"></span><span id="connectionText">未测试</span></span><span id="connectionDetail" class="connection-detail"></span></div><div class="row"><button id="connectivityBtn" class="action-test" onclick="testConnectivityOnly(this)">连通性测试</button><button id="validateBtn" class="action-test" onclick="validateOnly()">只校验</button></div></div>
+    <div class="row" style="justify-content:space-between; margin-bottom:12px"><div class="row"><h2 style="margin:0">搭建链式代理</h2><label class="switch"><input id="applySwitch" type="checkbox" onchange="applyConfig(this)"><span class="slider"></span></label><span id="applySwitchText" style="display:none"></span><span id="connectionStatus" class="connection unknown" title="尚未测试"><span class="dot"></span><span id="connectionText">未测试</span></span><span id="connectionDetail" class="connection-detail"></span></div><div class="row"><button id="connectivityBtn" class="action-test" onclick="testConnectivityOnly(this)">连通性测试</button><button class="secondary" onclick="fillEntryExample('ss')">SS入口</button><button class="secondary" onclick="fillEntryExample('http')">HTTP入口</button><button class="secondary" onclick="fillEntryExample('socks')">SOCKS5入口</button><button id="validateBtn" class="action-test" onclick="validateOnly()">只校验</button></div></div>
     <div id="chainSummary" class="summary-grid"></div>
     <div class="perf-panel">
       <div class="perf-head"><span class="perf-title">功能选项</span><span class="muted">切换后会保存 config.yaml 并重启 Mihomo</span></div>
@@ -249,8 +250,8 @@ const LOCAL_EXAMPLES = {
   tuic: `- type: tuic
   server: 0.0.0.0
   port: 2087
-  uuid: 667547af-159f-4059-9443-ed4eb326a438
-  password: 667547af-159f-4059-9443-ed4eb326a438
+  uuid: __MIMO_UUID__
+  password: __MIMO_UUID__
   sni: www.sciencedirect.com
   alpn:
     - h3
@@ -261,7 +262,7 @@ const LOCAL_EXAMPLES = {
   hysteria2: `- type: hysteria2
   server: 0.0.0.0
   port: 2055
-  password: 667547af-159f-4059-9443-ed4eb326a438
+  password: __MIMO_UUID__
   up: "200 Mbps"
   down: "200 Mbps"
   obfs: salamander
@@ -273,7 +274,7 @@ const LOCAL_EXAMPLES = {
   anytls: `- type: anytls
   server: 0.0.0.0
   port: 2096
-  password: 667547af-159f-4059-9443-ed4eb326a438
+  password: __MIMO_UUID__
   sni: ''
   alpn:
     - h2
@@ -296,7 +297,30 @@ const LOCAL_EXAMPLES = {
   server: 0.0.0.0
   port: 11080
   username: your_username
-  password: 667547af-159f-4059-9443-ed4eb326a438
+  password: __MIMO_UUID__
+  udp: true`
+};
+
+const ENTRY_EXAMPLES = {
+  ss: `- name: chain-entry-ss-14001
+  type: ss
+  server: 0.0.0.0
+  port: 14001
+  cipher: 2022-blake3-aes-128-gcm
+  password: ZnVHrxWfQFmUQ+1OsyakOA==
+  udp: true`,
+  http: `- name: chain-entry-http-2001
+  type: http
+  server: 0.0.0.0
+  port: 2001
+  username: your_username
+  password: __MIMO_UUID__`,
+  socks: `- name: chain-entry-socks-11001
+  type: socks
+  server: 0.0.0.0
+  port: 11001
+  username: your_username
+  password: __MIMO_UUID__
   udp: true`
 };
 
@@ -433,6 +457,7 @@ function connectivityDetail(conn){
 }
 function connectivityLogLine(conn){
   if(!conn) return '连通性测试无结果';
+  if(conn.ok === null) return `连通性测试跳过：${conn.mode || '入口非HTTP/SOCKS'}`;
   const status = conn.ok ? '成功' : '失败';
   return `连通性测试${status}：${connectivityDetail(conn)}`;
 }
@@ -444,7 +469,8 @@ function toggleChainPreview(){
   if(btn) btn.textContent = collapsed ? '链路预览' : '收起预览';
 }
 function connectivityBadgeText(conn){
-  if(conn && conn.ok) return conn.elapsed_ms !== undefined ? `Google连接成功! ${conn.elapsed_ms}ms` : 'Google连接成功!';
+  if(conn && conn.ok === true) return conn.elapsed_ms !== undefined ? `Google连接成功! ${conn.elapsed_ms}ms` : 'Google连接成功!';
+  if(conn && conn.ok === null) return '无法测试';
   if(conn && conn.checked_at) return conn.elapsed_ms !== undefined ? `Google FAIL · ${conn.elapsed_ms}ms` : 'Google FAIL';
   return '未测试';
 }
@@ -654,6 +680,7 @@ async function saveUiState(successMsg='状态已保存。'){
   return data;
 }
 function fillLocalExample(type){ document.getElementById('localPaste').value = LOCAL_EXAMPLES[type] || ''; }
+function fillEntryExample(type){ const text = ENTRY_EXAMPLES[type] || ''; document.getElementById('entryText').value = text; state.chain.entry_text = text; }
 async function toggleChainLocalhostOnly(){
   const localhostOnly = !!document.getElementById('chainLocalhostOnly')?.checked;
   state.chain.localhost_only = localhostOnly;
@@ -742,6 +769,20 @@ async function collectFreshStateForSave(){
     if(levelNodes.length > 0) nodeLevels.push(levelNodes);
   });
   if(nodeLevels.length > 0) latest.chain.node_texts = nodeLevels;
+
+  // 重新解析链式入口和节点，保持 entry/nodes/exit_proxy 与 DOM 文本一致
+  const flatNodeYamls = nodeLevels.flatMap(level => level.filter(n => n.trim()));
+  if(latest.chain.entry_text.trim() && flatNodeYamls.length > 0){
+    try {
+      const parsed = await api('/api/parse/chain', {entry_yaml: latest.chain.entry_text, node_yamls: flatNodeYamls});
+      latest.chain.entry = parsed.entry;
+      latest.chain.nodes = parsed.nodes;
+      latest.chain.exit_proxy = parsed.exit_proxy;
+      delete latest.chain.group_name;
+    } catch(e){
+      // 解析失败时保留旧值，让后端 apply 时报具体错误
+    }
+  }
 
   return latest;
 }
@@ -1054,6 +1095,26 @@ function applyReturnedState(data, options={}){
   if(options.renderLocal !== false) renderLocalCards();
   if(options.renderChain !== false){ renderChainNodes(); renderChainPreview(); }
 }
+async function restartService(){
+  const btn = event.target;
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '重启中...';
+  try{
+    const data = await api('/api/restart', {});
+    if(data.ok){
+      out('✓ Mihomo 已重启');
+      document.getElementById('statusPill').textContent = data.container || '已重启';
+    } else {
+      out('✗ 重启失败: ' + (data.reload ? data.reload.output : '未知错误'));
+    }
+  } catch(e){
+    out('✗ 重启异常: ' + (e.message || e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+}
 async function loadState(showConnectivity=false){
   try{
     const data = await api('/api/state'); state = data.state; if(data.public_ip) publicIp = data.public_ip; if(!state.chain) state.chain={enabled:true,node_texts:[['']]};
@@ -1178,12 +1239,18 @@ async function testConnectivityOnly(btn){
       }
     }
 
-    const data = await api('/api/connectivity-test', {});
+    const data = await api('/api/connectivity-test', {state: freshState});
     const conn = data.connectivity;
     appendLog(connectivityLogLine(conn));
-    if(conn && conn.ok){
+    if(conn && conn.ok === true){
       btn.classList.add('success');
       setConnectionStatus('connected', connectivityBadgeText(conn), connectivityDetail(conn));
+    } else if(conn && conn.ok === null){
+      btn.classList.remove('success', 'failed');
+      setConnectionStatus('unknown', '无法测试', conn.mode || '非HTTP/SOCKS入口');
+    } else if(conn && conn.mode === 'direct'){
+      btn.classList.remove('success', 'failed');
+      setConnectionStatus('unknown', '入口无效', '请检查入口是否为 HTTP/SOCKS');
     } else {
       btn.classList.add('failed');
       setConnectionStatus('failed', connectivityBadgeText(conn), connectivityDetail(conn));
@@ -1218,7 +1285,14 @@ async function applyConfig(toggle){
   label.textContent = '应用中...';
   out(targetOn ? '正在应用链式代理...' : '正在关闭链式代理...');
   try{
-    const freshState = await collectFreshState();
+    let freshState;
+    if(targetOn){
+      // 启用时：读取文本框最新配置并解析
+      freshState = await collectFreshState();
+    } else {
+      // 关闭时：直接用内存 state，不读 DOM / 不调 API，避免触发解析失败
+      freshState = JSON.parse(JSON.stringify(state));
+    }
     freshState.chain.enabled = targetOn;
     // skip_connectivity: 先秒应用，后异步测连通 (避免 reload + test 串行阻塞)
     const data = await api('/api/apply', {state:freshState, skip_connectivity: true});
@@ -1238,15 +1312,23 @@ async function applyConfig(toggle){
       label.textContent = '已应用';
       sw.checked = true; renderChainSwitchVisual(true);
       setConnectionStatus('testing', '检测中', '500ms 超时');
-      const testData = await api('/api/connectivity-test', {});
+      const testData = await api('/api/connectivity-test', {state: freshState});
       const conn = testData.connectivity;
-      if(conn && conn.ok){
+      if(conn && conn.ok === true){
         setConnectionStatus('connected', connectivityBadgeText(conn), connectivityDetail(conn));
+      } else if(conn && conn.ok === null){
+        // 入口非 HTTP/SOCKS，无法测试，不自动回退
+        setConnectionStatus('unknown', '无法测试', conn.mode || '非HTTP/SOCKS入口');
+        appendLog('⚠ 入口非 HTTP/SOCKS，连通性测试跳过');
+      } else if(conn && conn.mode === 'direct'){
+        // direct 模式说明入口无效，不自动回退
+        setConnectionStatus('unknown', '入口无效', '请检查入口配置');
+        appendLog('⚠ 连通性测试走直连，链式入口未生效');
       } else {
         // 重试 1 次
-        const retryData = await api('/api/connectivity-test', {});
+        const retryData = await api('/api/connectivity-test', {state: freshState});
         const retryConn = retryData.connectivity;
-        if(retryConn && retryConn.ok){
+        if(retryConn && retryConn.ok === true){
           setConnectionStatus('connected', connectivityBadgeText(retryConn), connectivityDetail(retryConn));
         } else {
           // 回退
@@ -1262,10 +1344,16 @@ async function applyConfig(toggle){
   }
   catch(e){
     out(e);
-    label.textContent = targetOn ? '应用失败' : '停止失败';
+    // 恢复开关到操作前的状态，保持 UI 一致
     sw.checked = !targetOn;
+    if(targetOn){
+      label.textContent = '应用失败';
+      renderChainSwitchVisual(false);
+    } else {
+      label.textContent = '停止失败';
+      renderChainSwitchVisual(true);
+    }
     setConnectionStatus('failed', '执行失败', e && e.error ? e.error : '请求失败');
-    renderChainSwitchVisual(false);
   }
   finally{
     setTimeout(() => {
@@ -1609,9 +1697,13 @@ def listener_to_client_node(listener, server_ip, dns_upstream="local"):
         })
     elif typ == "anytls":
         users = listener.get("users") or {}
+        username = None
         password = None
         if isinstance(users, dict) and users:
-            password = next(iter(users.values()))
+            username, password = next(iter(users.items()))
+        elif isinstance(users, list) and users:
+            username = users[0].get("username", "")
+            password = users[0].get("password", "")
         if not password:
             raise ValueError("AnyTLS listener 缺少 users/password")
         node.update({
@@ -1622,6 +1714,8 @@ def listener_to_client_node(listener, server_ip, dns_upstream="local"):
             "client-fingerprint": listener.get("client-fingerprint", "chrome"),
             "udp": True,
         })
+        if username:
+            node["username"] = str(username)
     elif typ == "shadowsocks":
         node.update({"cipher": listener.get("cipher"), "password": listener.get("password"), "udp": bool(listener.get("udp", True))})
     elif typ in ("http", "socks"):
@@ -1829,6 +1923,8 @@ def chain_proxy_names(state_obj):
     for node in nodes:
         if isinstance(node, dict) and node.get("name"):
             names.add(str(node.get("name")))
+        elif isinstance(node, str):
+            names.add(node)
     return names
 
 
@@ -2062,9 +2158,18 @@ def split_rule_providers():
     }
 
 
+DNS_BYPASS_RULES = [
+    "DOMAIN,cloudflare-dns.com,DIRECT",
+    "DOMAIN,dns.google,DIRECT",
+    "DOMAIN,223.5.5.5,DIRECT",
+    "DOMAIN,180.76.76.76,DIRECT",
+    "DOMAIN,119.29.29.29,DIRECT",
+]
+
+
 def split_rules(match_target):
     """大陆白名单: 私网/CN 直连, 其余走 match_target"""
-    return RESERVED_IP_RULES + [
+    return RESERVED_IP_RULES + DNS_BYPASS_RULES + [
         "RULE-SET,private,DIRECT",
         "RULE-SET,cn_domain,DIRECT",
         "RULE-SET,cn_ip,DIRECT,no-resolve",
@@ -2074,7 +2179,7 @@ def split_rules(match_target):
 
 def global_rules(match_target):
     """全局代理: 仅私网直连, 其余全部走 match_target"""
-    return RESERVED_IP_RULES + [f"MATCH,{match_target}"]
+    return RESERVED_IP_RULES + DNS_BYPASS_RULES + [f"MATCH,{match_target}"]
 
 
 def apply_split_rules(config, proxy_names, match_target, split_route=True):
@@ -2140,17 +2245,17 @@ def apply_performance_to_config(config, settings):
         if not profile:
             config.pop("profile", None)
     dns["respect-rules"] = True
-    # bootstrap DNS: 解析 DoH 域名用，必须用纯 IP 避免循环
-    dns["default-nameserver"] = ["223.5.5.5", "180.76.76.76", "119.29.29.29"]
-    # 代理节点域名解析: 用国内 DNS，防代理服务器域名被墙/污染
-    dns["proxy-server-nameserver"] = ["223.5.5.5", "180.76.76.76", "119.29.29.29"]
-    # 主 DNS: 国外 DoH 走代理隧道查询
-    dns["nameserver"] = ["https://cloudflare-dns.com/dns-query", "https://dns.google/dns-query"]
+    # DNS: 用 IP 直连 DoH（无需域名解析），兼容有/无 dnsmasq 的环境
+    # 如果已有 nameserver 配置则保留（如已手动设为 127.0.0.1）
+    if not dns.get("nameserver"):
+        dns["nameserver"] = ["https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query"]
+    if not dns.get("default-nameserver"):
+        dns["default-nameserver"] = ["1.1.1.1", "8.8.8.8"]
+    if not dns.get("proxy-server-nameserver"):
+        dns["proxy-server-nameserver"] = ["1.1.1.1", "8.8.8.8"]
     if settings["split_route"]:
-        # 白名单: CN 域名走国内 DNS 直连
-        dns["nameserver-policy"] = {"rule-set:cn_domain": ["223.5.5.5", "180.76.76.76", "119.29.29.29"]}
+        dns["nameserver-policy"] = {"rule-set:cn_domain": ["223.5.5.5", "119.29.29.29"]}
     else:
-        # 全局代理: 无 cn_domain provider, 移除 nameserver-policy
         dns.pop("nameserver-policy", None)
     dns.pop("fallback", None)
     dns.pop("fallback-filter", None)
@@ -2175,6 +2280,15 @@ def render_config(existing, state):
     config["listeners"] = without_managed(config.get("listeners"), old["listeners"])
     config["proxies"] = without_managed(config.get("proxies"), old["proxies"])
     config["proxy-groups"] = without_managed(config.get("proxy-groups"), old["groups"])
+    # 兜底清理：收集旧 chain-level 组引用的 proxy，一并从 proxies 移除
+    chain_group_proxy_names = set()
+    for g in (config.get("proxy-groups") or []):
+        if isinstance(g, dict) and str(g.get("name", "")).startswith("chain-"):
+            for pname in (g.get("proxies") or []):
+                chain_group_proxy_names.add(pname)
+    if chain_group_proxy_names:
+        config["proxies"] = [p for p in (config.get("proxies") or [])
+                             if not (isinstance(p, dict) and p.get("name") in chain_group_proxy_names)]
     used_listener_names = names_from_items(config.get("listeners"))
     listeners, proxies, groups, chain_names = build_managed_objects(state, used_listener_names, settings["split_route"])
     config["listeners"].extend(listeners)
@@ -2263,9 +2377,10 @@ def google_connectivity_command(state=None):
     entry_port = entry.get("port")
     target = "https://www.google.com/generate_204"
     cmd = ["curl", "-I", "-L", target]
-    mode = "direct"
-    # 只要有 entry 配置就使用链式代理测试，不检查 enabled 开关
-    if entry_port and entry_type in ("http", "socks"):
+    mode = "chain-untestable"
+    chain_enabled = chain.get("enabled")
+    # 链式代理场景：只测通过入口走代理，不用 direct
+    if chain_enabled and entry_port and entry_type in ("http", "socks"):
         users = entry.get("users") or []
         proxy_args = []
         if users and isinstance(users[0], dict) and users[0].get("username"):
@@ -2273,6 +2388,8 @@ def google_connectivity_command(state=None):
         scheme = "socks5h" if entry_type == "socks" else "http"
         cmd[1:1] = ["-x", f"{scheme}://127.0.0.1:{entry_port}"] + proxy_args
         mode = f"chain-entry-{entry_type}-{entry_port}"
+    elif chain_enabled and entry_port:
+        mode = "chain-untestable"
     return target, mode, cmd
 
 
@@ -2288,6 +2405,9 @@ def test_google_connectivity(state=None, timeout=5, connect_timeout=3, max_attem
     """
     checked_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     target, mode, cmd = google_connectivity_command(state)
+    # 入口非 HTTP/SOCKS 无法用 curl -x 测试，不跑直接返回
+    if mode == "chain-untestable":
+        return {"ok": None, "checked_at": checked_at, "target": target, "mode": mode, "output": "链式入口非 HTTP/SOCKS，无法直接测试连通性"}
     cmd = cmd[:]
     cmd[1:1] = ["--max-time", str(timeout), "--connect-timeout", str(connect_timeout)]
     last_result = None
@@ -2424,7 +2544,7 @@ def make_auth_file():
             auth = load_yaml(AUTH_PATH, {})
             salt = base64.b64decode(auth.get("salt", ""))
             expected_hash = base64.b64decode(auth.get("hash", ""))
-            actual_hash = hashlib.pbkdf2_hmac("sha256", b"Dd--2131801", salt, int(auth.get("iterations", 200000)))
+            actual_hash = hashlib.pbkdf2_hmac("sha256", b"5360c24e39a92afa", salt, int(auth.get("iterations", 200000)))
             if hmac.compare_digest(actual_hash, expected_hash):
                 return  # Valid, keep it
         except Exception:
@@ -2433,7 +2553,7 @@ def make_auth_file():
         AUTH_PATH.unlink(missing_ok=True)
 
     salt = os.urandom(16)
-    digest = hashlib.pbkdf2_hmac("sha256", b"Dd--2131801", salt, 200000)
+    digest = hashlib.pbkdf2_hmac("sha256", b"5360c24e39a92afa", salt, 200000)
     data = {"username": "admin12", "algorithm": "pbkdf2_sha256", "iterations": 200000, "salt": base64.b64encode(salt).decode(), "hash": base64.b64encode(digest).decode()}
     save_yaml_atomic(AUTH_PATH, data)
     os.chmod(AUTH_PATH, 0o600)
@@ -2706,6 +2826,11 @@ class Handler(BaseHTTPRequestHandler):
                     s = load_yaml(STATE_PATH, default_state())
                 result = apply_state(s, skip_connectivity=data.get("skip_connectivity", False))
                 json_response(self, 200 if result.get("ok") else 400, result)
+                return
+            if path == "/api/restart":
+                result = recreate_mihomo()
+                container = container_status()
+                json_response(self, 200 if result["ok"] else 500, {"ok": result["ok"], "reload": result, "container": container})
                 return
             json_response(self, 404, {"ok": False, "error": "not found"})
         except Exception as e:

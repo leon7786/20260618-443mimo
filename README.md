@@ -144,10 +144,52 @@ systemctl daemon-reload && systemctl restart docker
 
 ## DNS
 
+**远端 VPS：dnsmasq → mihomo 127.0.0.1**
+
+部分 VPS UDP 53 被封，DoH 域名解析死循环（cloudflare-dns.com 需 DNS 解析自身）。部署 dnsmasq 做本地缓存：
+
+```bash
+apt-get install -y dnsmasq
+
+cat > /etc/dnsmasq.conf <<'EOF'
+all-servers
+server=1.1.1.1
+server=8.8.8.8
+cache-size=10000
+min-cache-ttl=60
+neg-ttl=60
+dns-forward-max=300
+listen-address=127.0.0.1
+bind-interfaces
+local-service
+domain-needed
+bogus-priv
+log-async=20
+EOF
+
+chattr -i /etc/resolv.conf; rm -f /etc/resolv.conf
+echo "nameserver 127.0.0.1" > /etc/resolv.conf
+chattr +i /etc/resolv.conf
+systemctl enable --now dnsmasq
+
+# mihomo DNS 三段改 127.0.0.1
+python3 -c "
+import yaml
+p='/root/projects/20260515-mimo443/mimo443/config.yaml'
+c=yaml.safe_load(open(p))
+d=c.setdefault('dns',{})
+for k in ['nameserver','default-nameserver','proxy-server-nameserver']:
+    d[k]=['127.0.0.1']
+yaml.safe_dump(c,open(p,'w'),allow_unicode=True,sort_keys=False)
+"
+systemctl restart mimo.service
 ```
-国内域名 → 223.5.5.5 / 180.76.76.76（直连）
-国外域名 → cloudflare-dns.com / dns.google（DoH 走代理隧道）
-```
+
+控制台代码已保护已有 DNS：若 `nameserver` 已设置则 apply 时不覆盖。远端手动设 `127.0.0.1` 后不会被冲掉。
+
+**本地：IP 直连 DoH（不需 dnsmasq）**
+
+本地 UDP 53 正常，控制台自动用 `https://1.1.1.1/dns-query` + `https://8.8.8.8/dns-query`。
 
 ## 安全
 
@@ -161,15 +203,35 @@ systemctl daemon-reload && systemctl restart docker
 # 看服务状态
 systemctl status mimo.service mimo-console.service
 
-# 端口监听
-ss -lntp | grep -E ':(2000|2001|7892|1053|19093)'
+# 端口监听（TCP + UDP 都要查）
+ss -lntp | grep -E ':(2000|2001|2093|2096)'
+ss -lnup | grep -E ':(2087|2055)'
 
 # 服务日志
 journalctl -u mimo.service -u mimo-console.service --no-pager -n 50
 
+# DNS 测试
+dig +short @127.0.0.1 www.google.com    # dnsmasq
+dig +short @1.1.1.1 www.google.com      # 直连 UDP 53
+
+# 链式连通测试
+curl -sI --max-time 10 -x http://127.0.0.1:2001 -U user:pass \
+  https://www.google.com/generate_204
+
 # 重载/重启
 systemctl restart mimo.service
 ```
+
+### 常见问题
+
+| 现象 | 原因 | 解决 |
+|------|------|------|
+| 链式代理反复回退 | 远端 DNS 不通（UDP 53 被封 / DoH 死循环） | 远端部署 dnsmasq，mihomo DNS 指 127.0.0.1 |
+| 连通性测试成功但乱填节点也能通 | 入口非 HTTP/SOCKS，测试走 direct 绕过链 | 控制台已修：非 HTTP 入口标 untestable |
+| 关链式开关失败 | state.yaml 里 nodes 存成字符串，managed 名空 | 控制台已修：chain_proxy_names 兼容字符串 |
+| 复制节点缺 username | listener_to_client_node 漏掉 AnyTLS username | 已修复 |
+| 粘贴节点到文本框不生效 | YAML 带 tab 缩进导致解析失败 | 粘贴后用空格替换 tab |
+| 端口监听看不到 | TUIC/Hysteria2 用 UDP，需 `ss -lnup` | `ss -lnup \| grep PORT` |
 
 ## 卸载
 

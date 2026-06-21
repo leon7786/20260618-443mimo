@@ -1,0 +1,27 @@
+version: 1
+local_services: []
+chain:
+  enabled: false
+  entry_text: ''
+  node_texts:
+  - - ''
+  entry: null
+  nodes: []
+  exit_proxy: ''
+  localhost_only: false
+managed:
+  listener_names: []
+  proxy_names: []
+  proxy_group_names:
+  - 节点选择
+connectivity: null
+performance:
+  keep_alive: true
+  tcp_concurrent: true
+  unified_delay: true
+  fake_ip: false
+  split_route: true
+  ipv6: false
+  connection_timeout: 5
+  log_level: info
+  tproxy: false

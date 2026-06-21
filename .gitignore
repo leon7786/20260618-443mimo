@@ -1,13 +1,24 @@
-# secrets
-config.yaml
-console/console-auth.yaml
-console/tokens.yaml
-console/state.yaml
+# 二进制
+mimo-linux-amd64
+mimo-linux-arm64-a53
+
+# 规则文件（自动下载）
+ruleset/*.mrs
+
+# 证书（本地生成）
 ruleset/server.crt
 ruleset/server.key
 
-# runtime
-cache.db
-*.pyc
-__pycache__/
+# 敏感
+uuid
+console/console-auth.yaml
+console/tokens.yaml
 console/.initialized
+cache.db
+__pycache__/
+*.pyc
+
+# 本地运行状态
+config.yaml
+!config.yaml.example
+console/state.yaml
