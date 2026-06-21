@@ -249,23 +249,23 @@ const LOCAL_EXAMPLES = {
   tuic: `- type: tuic
   server: 0.0.0.0
   port: 2087
-  uuid: __MIMO_UUID__
-  password: __MIMO_UUID__
+  uuid: 667547af-159f-4059-9443-ed4eb326a438
+  password: 667547af-159f-4059-9443-ed4eb326a438
   sni: www.sciencedirect.com
   alpn:
     - h3
   skip-cert-verify: true
-  disable-sni: false
+  disable-sni: true
   congestion-controller: bbr
   udp: true`,
   hysteria2: `- type: hysteria2
   server: 0.0.0.0
   port: 2055
-  password: __MIMO_UUID__
+  password: 667547af-159f-4059-9443-ed4eb326a438
   up: "200 Mbps"
   down: "200 Mbps"
   obfs: salamander
-  obfs-password: __MIMO_UUID__
+  obfs-password: OWQwMjliNDEwYjA2OWQwMw==
   alpn:
     - h3
   skip-cert-verify: true
@@ -273,7 +273,7 @@ const LOCAL_EXAMPLES = {
   anytls: `- type: anytls
   server: 0.0.0.0
   port: 2096
-  password: __MIMO_UUID__
+  password: 667547af-159f-4059-9443-ed4eb326a438
   sni: ''
   alpn:
     - h2
@@ -285,7 +285,7 @@ const LOCAL_EXAMPLES = {
   server: 0.0.0.0
   port: 2093
   cipher: 2022-blake3-aes-128-gcm
-  password: __MIMO_UUID__
+  password: ZnVHrxWfQFmUQ+1OsyakOA==
   udp: true`,
   http: `- type: http
   server: 0.0.0.0
@@ -296,7 +296,7 @@ const LOCAL_EXAMPLES = {
   server: 0.0.0.0
   port: 11080
   username: your_username
-  password: __MIMO_UUID__
+  password: 667547af-159f-4059-9443-ed4eb326a438
   udp: true`
 };
 
@@ -1215,59 +1215,49 @@ async function applyConfig(toggle){
   switchEl.classList.add('starting');
   switchEl.classList.remove('on');
   sw.disabled = true;
-  label.textContent = targetOn ? '应用中...' : '停止中...';
-  setConnectionStatus('testing', '检测中', targetOn ? '正在测试 google.com 连通性' : '正在停止链式代理');
-  out(targetOn ? '正在保存 config.yaml，热加载 mimo，并测试 google.com 连通性...' : '正在保存 config.yaml，关闭当前链式代理，并热加载 mimo...');
+  label.textContent = '应用中...';
+  out(targetOn ? '正在应用链式代理...' : '正在关闭链式代理...');
   try{
-    // 直接从当前页面 DOM 读取最新配置 + 浏览器内存 state, 不请求 /api/state
     const freshState = await collectFreshState();
     freshState.chain.enabled = targetOn;
-    const data = await api('/api/apply', {state:freshState});
+    // skip_connectivity: 先秒应用，后异步测连通 (避免 reload + test 串行阻塞)
+    const data = await api('/api/apply', {state:freshState, skip_connectivity: true});
     out(data);
     applyReturnedState(data, {syncSwitch:false});
-    label.textContent = targetOn ? '已应用' : '已停止';
-    const conn = data.connectivity;
 
-    if(targetOn && conn && conn.ok){
-      setConnectionStatus('connected', connectivityBadgeText(conn), connectivityDetail(conn));
-      sw.checked = true;
-      renderChainSwitchVisual(true);
-    } else if(targetOn && conn && !conn.ok) {
-      appendLog('⚠️ 首次连通性测试失败，将进行 2 次重试（每次超时 1 秒）...');
-      let retrySuccess = false;
-      for(let i = 1; i <= 2; i++){
-        await new Promise(r => setTimeout(r, 500));
-        const retryData = await api('/api/connectivity-test-retry', {});
+    if(!targetOn){
+      label.textContent = '已停止';
+      sw.checked = false; renderChainSwitchVisual(false);
+      setConnectionStatus('unknown', '已停止', '');
+    } else if(!data.ok) {
+      label.textContent = '应用失败';
+      sw.checked = false; renderChainSwitchVisual(false);
+      setConnectionStatus('failed', '应用失败', data.error || '');
+    } else {
+      // 应用成功，异步测试连通性
+      label.textContent = '已应用';
+      sw.checked = true; renderChainSwitchVisual(true);
+      setConnectionStatus('testing', '检测中', '500ms 超时');
+      const testData = await api('/api/connectivity-test', {});
+      const conn = testData.connectivity;
+      if(conn && conn.ok){
+        setConnectionStatus('connected', connectivityBadgeText(conn), connectivityDetail(conn));
+      } else {
+        // 重试 1 次
+        const retryData = await api('/api/connectivity-test', {});
         const retryConn = retryData.connectivity;
-        appendLog(`重试 ${i}/3: ${retryConn.ok ? '成功 ✓' : '失败 ✗'} (${retryConn.elapsed_ms}ms)`);
-        if(retryConn.ok){
-          retrySuccess = true;
+        if(retryConn && retryConn.ok){
           setConnectionStatus('connected', connectivityBadgeText(retryConn), connectivityDetail(retryConn));
-          break;
+        } else {
+          // 回退
+          appendLog('❌ 连通失败，自动回退');
+          freshState.chain.enabled = false;
+          await api('/api/apply', {state: freshState, skip_connectivity: true});
+          sw.checked = false; renderChainSwitchVisual(false);
+          setConnectionStatus('failed', '已回退', 'google.com 不可达');
+          label.textContent = '已回退';
         }
       }
-
-      if(!retrySuccess){
-        appendLog('❌ 连续测试失败，自动回退配置');
-        freshState.chain.enabled = false;
-        const rollbackData = await api('/api/apply', {});
-        out(rollbackData);
-        sw.checked = false;
-        renderChainSwitchVisual(false);
-        setConnectionStatus('failed', '回退成功', '连续测试失败已自动回退');
-        label.textContent = '已回退';
-      } else {
-        sw.checked = true;
-        renderChainSwitchVisual(true);
-      }
-    } else if(targetOn) {
-      setConnectionStatus('failed', connectivityBadgeText(conn), connectivityDetail(conn));
-      sw.checked = true;
-      renderChainSwitchVisual(true);
-    } else {
-      setConnectionStatus('unknown', '已停止', '');
-      sw.checked = false;
-      renderChainSwitchVisual(false);
     }
   }
   catch(e){
@@ -1932,7 +1922,7 @@ def build_managed_objects(state, used_listener_names=None, split_route=True):
                 proxies.append(node)
             else:
                 # 多节点，创建 urltest 组
-                group_name = f"chain-level{level_index+2}-urltest"
+                group_name = f"chain-level{level_index+2}-fallback"
 
                 # 所有同级节点的 dialer-proxy 指向上一级
                 for node in level_nodes:
@@ -1940,16 +1930,17 @@ def build_managed_objects(state, used_listener_names=None, split_route=True):
                         node["dialer-proxy"] = previous_target
                     proxies.append(node)
 
-                # 创建 urltest 组
-                urltest_group = {
+                # 创建 fallback 组: 主节点优先，故障后自动切备
+                fallback_group = {
                     "name": group_name,
-                    "type": "url-test",
+                    "type": "fallback",
                     "proxies": [node["name"] for node in level_nodes],
                     "url": "https://www.gstatic.com/generate_204",
-                    "interval": 300,
-                    "tolerance": 50,
+                    "interval": 60,
+                    "timeout": 3000,
+                    "max-failed-times": 2,
                 }
-                groups.append(urltest_group)
+                groups.append(fallback_group)
                 previous_target = group_name
 
         # 入口节点的 proxy 指向最后一级
@@ -2320,7 +2311,7 @@ def test_google_connectivity(state=None, timeout=5, connect_timeout=3, max_attem
 
 def test_google_connectivity_quick(state=None):
     """快速测试：500ms 超时，重试 2 次"""
-    return test_google_connectivity(state, timeout=0.5, connect_timeout=0.5, max_attempts=2, retry_delay=0.1)
+    return test_google_connectivity(state, timeout=1.0, connect_timeout=1.0, max_attempts=1, retry_delay=0)
 
 
 def test_google_connectivity_retry(state=None):

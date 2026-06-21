@@ -375,6 +375,29 @@ status() {
   echo "access:     http://服务器IP:2000"
 }
 
+# ── password ──────────────────────────────────────────────
+passwd() {
+  local pass1 pass2
+  read -r -s -p "  新密码: " pass1
+  echo ""
+  read -r -s -p "  确认密码: " pass2
+  echo ""
+  [ "${pass1}" != "${pass2}" ] && { echo "[ERROR] 两次密码不一致" >&2; return 1; }
+  [ -z "${pass1}" ] && { echo "[ERROR] 密码不能为空" >&2; return 1; }
+  AUTH_PASS="${pass1}" python3 - <<'PY'
+import base64, hashlib, os, yaml
+path = os.environ.get("AUTH_FILE", "/root/projects/20260515-mimo443/mimo443/console/console-auth.yaml")
+salt = os.urandom(16)
+digest = hashlib.pbkdf2_hmac("sha256", os.environ["AUTH_PASS"].encode(), salt, 200000)
+data = {"username":"admin12","algorithm":"pbkdf2_sha256","iterations":200000,
+        "salt":base64.b64encode(salt).decode(),"hash":base64.b64encode(digest).decode()}
+with open(path,"w",encoding="utf-8") as f:
+    yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+os.chmod(path, 0o600)
+PY
+  echo "[OK] 密码已更新，重启 console 生效: systemctl restart mimo-console.service"
+}
+
 # ── dispatch ──────────────────────────────────────────────
 case "${1:-}" in
   install)   install ;;
@@ -382,16 +405,18 @@ case "${1:-}" in
   stop)      systemctl stop "${SERVICE_NAME}" ;;
   restart)   systemctl restart "${SERVICE_NAME}" ;;
   status)    status ;;
+  passwd)    passwd ;;
   tproxy-start)  run_tproxy_start ;;
   tproxy-stop)   run_tproxy_stop ;;
   tproxy-status) run_tproxy_status ;;
   uninstall)     uninstall ;;
   *)
     echo "mimo 管理脚本"
-    echo "用法: bash $0 {install|start|stop|restart|status|uninstall|tproxy-start|tproxy-stop}"
+    echo "用法: bash $0 {install|start|stop|restart|status|passwd|uninstall|tproxy-start|tproxy-stop}"
     echo ""
     echo "  install   — 全新安装 (幂等)"
     echo "  status    — 查看状态"
+    echo "  passwd    — 修改控制台登录密码"
     echo "  uninstall — 完全卸载"
     exit 0
     ;;
