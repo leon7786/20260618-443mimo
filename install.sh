@@ -25,7 +25,7 @@ if [ -z "${MIMO_UUID:-}" ]; then
 fi
 
 MIMO_PASS="${MIMO_PASS:-admin12}"
-MIMO_UUID="${MIMO_UUID:-$(cat /proc/sys/kernel/random/uuid 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())')}"
+MIMO_UUID="${MIMO_UUID:-667547af-159f-4059-9443-ed4eb326a438}"
 
 echo "[INFO] user: admin12  pass: ${MIMO_PASS}  uuid: ${MIMO_UUID}"
 export MIMO_PASS MIMO_UUID
