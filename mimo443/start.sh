@@ -283,11 +283,11 @@ table ip mimo_tproxy {
   chain tproxy_logic {
     ct state invalid drop
     ct state { established, related } accept
-    meta l4proto { tcp, udp } th dport 53 redirect to :${DNS_PORT}
     ip daddr @reserved return
     ${PUB_RULE}
     tcp dport @bypass return
     udp dport @bypass return
+    meta l4proto { tcp, udp } th dport 53 redirect to :${DNS_PORT}
     meta l4proto tcp redirect to :${REDIR_PORT}
   }
   chain prerouting {

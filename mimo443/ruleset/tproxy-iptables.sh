@@ -60,7 +60,7 @@ start() {
   # 跳过 mimo 相关端口
   iptables -t nat -A MIMO_REDIR -p tcp -m multiport --dports "$MIMO_PORTS" -j RETURN
   iptables -t nat -A MIMO_REDIR -p udp -m multiport --dports "$MIMO_PORTS" -j RETURN
-  # 跳过保留地址
+  # 跳过保留地址（必须在DNS重定向之前，否则localhost:53被截获）
   for ip in 127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16 100.64.0.0/10 224.0.0.0/4 240.0.0.0/4; do
     iptables -t nat -A MIMO_REDIR -d "$ip" -j RETURN
   done
@@ -70,7 +70,7 @@ start() {
     iptables -t nat -A MIMO_REDIR -d "$PUB" -j RETURN
   fi
 
-  # DNS 重定向（放 TCP 前面）
+  # DNS 重定向（放保留地址之后）
   iptables -t nat -A MIMO_REDIR -p tcp --dport 53 -j REDIRECT --to-ports "$DNS_PORT"
   iptables -t nat -A MIMO_REDIR -p udp --dport 53 -j REDIRECT --to-ports "$DNS_PORT"
   # TCP 重定向
