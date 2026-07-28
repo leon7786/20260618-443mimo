@@ -30,7 +30,16 @@ export MIMO_PASS MIMO_UUID
 
 # ── dependencies ──────────────────────────────────────────
 echo "[DEPS] 检查依赖..."
-apt-get update -qq 2>/dev/null
+# 修复旧 Debian 失效安全源
+if [ -f /etc/apt/sources.list ]; then
+  sed -i 's|archive.debian.org/debian-security|archive.debian.org/debian-security|g; s|bullseye-security/updates|bullseye-security|g' /etc/apt/sources.list 2>/dev/null || true
+fi
+apt-get update -qq 2>/dev/null || {
+  echo "[WARN] apt-get update 失败，尝试修复..."
+  # 移除失效的安全源，仅保留主源
+  sed -i '/security/d' /etc/apt/sources.list 2>/dev/null || true
+  apt-get update -qq 2>/dev/null || true
+}
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git curl ca-certificates 2>/dev/null || \
   yum install -y -q git curl ca-certificates 2>/dev/null || \
   { echo "[ERROR] git/curl 安装失败"; exit 1; }
