@@ -35,7 +35,9 @@ ensure_tools() {
   command -v openssl  >/dev/null 2>&1 || { missing+=(openssl);  pkgmap+=(openssl); }
   command -v python3  >/dev/null 2>&1 || { missing+=(python3);  pkgmap+=(python3); }
   python3 -c 'import yaml' 2>/dev/null || { missing+=(python3-yaml); pkgmap+=(python3-yaml); }
-  command -v nft      >/dev/null 2>&1 || { missing+=(nftables); pkgmap+=(nftables); }
+  command -v iptables >/dev/null 2>&1 || { missing+=(iptables); pkgmap+=(iptables); }
+  # nftables 可选（新系统用nft，旧系统用iptables）
+  command -v nft      >/dev/null 2>&1 || pkgmap+=(nftables)
   command -v ss       >/dev/null 2>&1 || command -v netstat >/dev/null 2>&1 || { missing+=(iproute2); pkgmap+=(iproute2); }
   command -v dig      >/dev/null 2>&1 || { missing+=(dnsutils); pkgmap+=(dnsutils); }
   [ "${#missing[@]}" -eq 0 ] && return
@@ -67,7 +69,13 @@ select_binary() {
 
 ensure_binary() {
   local bin; bin="$(select_binary)"
-  [ -f "${bin}" ] || { echo "[ERROR] 缺少内核: ${bin}" >&2; exit 1; }
+  if [ ! -f "${bin}" ]; then
+    echo "[CORE] 二进制不存在，尝试下载..."
+    bash "${APP_DIR}/download.sh" --force || {
+      echo "[ERROR] 缺少内核: ${bin}" >&2
+      exit 1
+    }
+  fi
   chmod +x "${bin}"
   echo "[CORE] ${bin}"
 }
@@ -228,12 +236,32 @@ print(", ".join(str(p) for p in sorted(ports)) + ", 60000-60050")
 PY
 }
 
+# 检测 nft 是否支持现代语法 (interval set)
+nft_modern_supported() {
+  command -v nft >/dev/null 2>&1 || return 1
+  nft -f - <<'NFTEST' 2>/dev/null || return 1
+table ip _mimo_test { set _s { type inet_service; flags interval; elements = { 80 } } }
+NFTEST
+  nft delete table ip _mimo_test 2>/dev/null || true
+  return 0
+}
+
 run_tproxy_start() {
-  command -v nft >/dev/null 2>&1 || { echo "[ERROR] nft 不可用" >&2; exit 1; }
+  if nft_modern_supported; then
+    _tproxy_nft_start
+  elif [ -f "${APP_DIR}/ruleset/tproxy-iptables.sh" ]; then
+    echo "[TPROXY] nft 版本太旧，切换到 iptables"
+    bash "${APP_DIR}/ruleset/tproxy-iptables.sh" start
+  else
+    echo "[ERROR] nft 不支持现代语法且无 iptables 脚本" >&2
+    exit 1
+  fi
+}
+
+_tproxy_nft_start() {
   local REDIR_PORT=7892 DNS_PORT=1053 FWMARK=0xff
   local BYPASS; BYPASS="$(tproxy_bypass_elements 2>/dev/null)"
   [ -z "${BYPASS}" ] && BYPASS="22, 1053, 2000, 7892, 19093, 60000-60050"
-  # 本机公网 IP 绕过 (防自连/防 SSH 入站被劫持)
   local PUB PUB_RULE=""
   PUB=$(curl -fsSL --max-time 3 ifconfig.me 2>/dev/null || true)
   if [ -n "${PUB}" ] && echo "${PUB}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
@@ -283,16 +311,27 @@ table ip mimo_quic {
 EOF
   echo "透明代理已启动 (nft, bypass: ${BYPASS})"
 }
+
 run_tproxy_stop() {
-  command -v nft >/dev/null 2>&1 || { echo "[ERROR] nft 不可用" >&2; exit 1; }
+  # 清理 nft
   nft delete table ip mimo_tproxy 2>/dev/null || true
   nft delete table ip mimo_quic 2>/dev/null || true
+  # 清理 iptables
+  if [ -f "${APP_DIR}/ruleset/tproxy-iptables.sh" ]; then
+    bash "${APP_DIR}/ruleset/tproxy-iptables.sh" stop 2>/dev/null || true
+  fi
   echo "透明代理已停止"
 }
+
 run_tproxy_status() {
-  command -v nft >/dev/null 2>&1 || { echo "[ERROR] nft 不可用" >&2; exit 1; }
-  echo "=== mimo_tproxy ==="; nft list table ip mimo_tproxy 2>/dev/null || echo "(无)"
-  echo "=== mimo_quic ===";   nft list table ip mimo_quic 2>/dev/null || echo "(无)"
+  echo "=== nft ==="
+  nft list table ip mimo_tproxy 2>/dev/null || echo "(无)"
+  nft list table ip mimo_quic 2>/dev/null || echo "(无)"
+  echo ""
+  echo "=== iptables ==="
+  if [ -f "${APP_DIR}/ruleset/tproxy-iptables.sh" ]; then
+    bash "${APP_DIR}/ruleset/tproxy-iptables.sh" status 2>/dev/null || true
+  fi
 }
 
 # ── stop systemd-resolved ─────────────────────────────────

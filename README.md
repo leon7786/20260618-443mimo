@@ -9,7 +9,7 @@
 - **多协议入站** — TUIC / Hysteria2 / AnyTLS / Shadowsocks / HTTP / SOCKS5
 - **链式代理** — 入口 → 多级节点串联 → 互联网，支持同级备用自动切换
 - **国内外分流** — 大陆 IP/域名直连，其余走代理
-- **透明代理** — nftables 劫持本机 TCP+DNS，无需逐个程序配代理
+- **透明代理** — nftables/iptables 自动检测，劫持本机 TCP+DNS，无需逐个程序配代理
 - **Web 控制台** — 所有操作在浏览器完成，无需 SSH
 
 ## 目录结构
@@ -19,15 +19,17 @@
 ├── README.md          ← 本文档
 └── mimo443/
     ├── start.sh                   安装/管理脚本（一切从这里开始）
+    ├── download.sh                下载二进制和规则文件
     ├── config.yaml                Mihomo 运行配置
-    ├── mimo-linux-amd64           x86_64 内核
-    ├── mimo-linux-arm64-a53       ARM64 内核
+    ├── mimo-linux-amd64           x86_64 内核（从 GitHub Releases 下载）
+    ├── mimo-linux-arm64-a53       ARM64 内核（从 GitHub Releases 下载）
     ├── console/
     │   ├── console.py             Web 控制台（端口 2000）
     │   ├── console-auth.yaml      控制台登录密码
     │   └── state.yaml             UI 状态
     └── ruleset/
         ├── server.crt / server.key  TLS 证书
+        ├── tproxy-iptables.sh      iptables 版透明代理（旧系统回退）
         ├── cn_domain.mrs           中国域名规则
         ├── cn_ip.mrs               中国 IP 规则
         └── private.mrs             私有域名规则
@@ -47,17 +49,50 @@ bash <(curl -fsSL https://raw.githubusercontent.com/leon7786/20260618-443mimo/ma
 MIMO_UUID=your-uuid MIMO_PASS=your-password bash <(curl -fsSL https://raw.githubusercontent.com/leon7786/20260618-443mimo/master/install.sh)
 ```
 
-部署完成后即可用浏览器打开控制台。依赖自动安装。2 个 systemd 服务默认 enable，透明代理需手动开启：
+部署完成后即可用浏览器打开控制台。依赖自动安装。3 个 systemd 服务默认全部 enable：
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
 | `mimo.service` | 7892, 1053, 19093 | 内核 |
 | `mimo-console.service` | 2000 | Web 控制台 |
-| `mimo-tproxy.service` | — | 透明代理 nftables（手动开启） |
+| `mimo-tproxy.service` | — | 透明代理（nftables/iptables 自动检测） |
 
-透明代理默认关闭。开启：`systemctl enable --now mimo-tproxy.service`。关闭：`systemctl disable --now mimo-tproxy.service`。
+透明代理默认开启。关闭：`systemctl disable --now mimo-tproxy.service`。重新开启：`systemctl enable --now mimo-tproxy.service`。
 
-**绕过端口**（不走代理，避免锁死）：SSH `22` 与 `60000-60050`、控制台 `2000`、控制器 `19093`、redir `7892`、DNS `1053`，以及 `config.yaml` 里所有入站 listener 端口（自动从配置提取）。本机公网 IP 也绕过。规则查看：`nft list table ip mimo_tproxy`。
+**透明代理兼容性**：新系统（nftables ≥ 1.0）使用 nft，旧系统（Debian 10/11 等 nftables < 1.0）自动回退到 iptables。无需手动配置。
+
+**绕过端口**（不走代理，避免锁死）：SSH `22` 与 `60000-60050`、控制台 `2000`、控制器 `19093`、redir `7892`、DNS `1053`，以及 `config.yaml` 里所有入站 listener 端口（自动从配置提取）。本机公网 IP 也绕过。规则查看：`nft list table ip mimo_tproxy`（nft）或 `iptables -t nat -L MIMO_REDIR -n`（iptables）。
+
+## DNS 优化（推荐）
+
+远端 VPS 部分 UDP 53 被封，DoH 域名解析会死循环。部署 dnsmasq 做本地缓存：
+
+```bash
+apt-get install -y dnsmasq
+
+cat > /etc/dnsmasq.conf <<'EOF'
+bind-interfaces
+listen-address=127.0.0.1
+port=53
+all-servers
+server=1.1.1.1
+server=8.8.8.8
+no-resolv
+cache-size=10000
+neg-ttl=3600
+min-cache-ttl=3600
+max-cache-ttl=86400
+edns-packet-max=1232
+bogus-priv
+filter-AAAA
+dns-forward-max=1000
+EOF
+
+echo "nameserver 127.0.0.1" > /etc/resolv.conf
+systemctl enable --now dnsmasq
+```
+
+> **注意**：Debian 10/11 旧版 dnsmasq 不支持 `filter-AAAA`，需去掉该行。
 
 ## 控制台
 
